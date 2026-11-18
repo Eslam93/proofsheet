@@ -156,4 +156,4 @@ The [decision records](docs/decisions) explain six choices that shape the code, 
 
 ## License
 
-[MIT](LICENSE), by the [REUSE](https://reuse.software) convention: every file states its copyright and license, and CI checks it. The recorded SEC company facts in [`data/sec`](data/sec) are data the companies filed with the SEC, not the author's work, so they keep their own origin in [REUSE.toml](REUSE.toml).
+[MIT](LICENSE), by the [REUSE](https://reuse.software) convention: every file states its copyright and license, which `reuse lint` checks. The recorded SEC company facts in [`data/sec`](data/sec) are data the companies filed with the SEC, not the author's work, so they keep their own origin in [REUSE.toml](REUSE.toml).

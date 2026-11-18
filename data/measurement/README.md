@@ -47,7 +47,7 @@ Both rules read the same captured company facts (`data/sec/<capture date>`).
 |---|---|
 | `companies.json` | The list, its selection rule in words, and the capture date. |
 | `truth/<TICKER>.json` | The hand-read values for one company, with where each was printed. |
-| `results.md` | Generated. CI fails when a fresh run differs from it. |
+| `results.md` | Generated. `dotnet test` fails when a fresh run differs from it. |
 
 To regenerate `results.md` after a deliberate change, set `PROOFSHEET_UPDATE_MEASUREMENT=1`, run
 `dotnet test --filter SelectionMeasurementTests`, and review the diff before committing it.
