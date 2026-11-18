@@ -64,4 +64,7 @@ public sealed record CompletedResearchResult(
             new OrchestrationDetailResponse(ResearchMode.Standard, null, null, false, 0, 0, 0))
     {
     }
+
+    /// <summary>Only data filed on or before this date was used, so the same date gives the same figures.</summary>
+    public DateOnly? AsOf { get; init; }
 }

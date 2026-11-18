@@ -5,6 +5,8 @@
 using System.Net;
 using System.Text;
 using System.Text.Json.Nodes;
+using Proofsheet.Application.Models;
+using Proofsheet.Application.Services;
 using Proofsheet.Domain.Enums;
 using Proofsheet.Infrastructure.Clients;
 using Proofsheet.Infrastructure.Options;
@@ -115,10 +117,25 @@ public sealed class SecFinancialStatementFixtureTests
         Assert.Contains("no revenue for the fiscal year ending 2026-09-26; the newest revenue on file is for 2025-09-27", result.ErrorMessage, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task Live_Statement_As_Of_A_Date_Uses_Only_What_Was_Filed_By_Then()
+    {
+        // Apple filed its FY2026 10-K on 2026-11-03. The day before, FY2025 is the latest fiscal year: revenue
+        // 416,161 against 391,035 (USD millions) is 6.43% growth.
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var dayBefore = await CreateProvider("AAPL", "0000320193", cache, CapturedOn, asOf: new DateOnly(2026, 11, 2)).GetAsync("AAPL", CancellationToken.None);
+        var dayOf = await CreateProvider("AAPL", "0000320193", cache, CapturedOn, asOf: new DateOnly(2026, 11, 3)).GetAsync("AAPL", CancellationToken.None);
+
+        Assert.Equal(DateTimeOffset.Parse("2025-09-27T00:00:00Z"), dayBefore.Value!.TimestampUtc);
+        Assert.Equal(6.43m, dayBefore.Value.RevenueGrowthPercent);
+        Assert.Equal(DateTimeOffset.Parse("2026-09-26T00:00:00Z"), dayOf.Value!.TimestampUtc);
+        Assert.Equal(15.06m, dayOf.Value.RevenueGrowthPercent);
+    }
+
     private static string ReadFixture(string ticker) =>
         File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "Sec", $"companyfacts-{ticker}.json"));
 
-    private static HybridFinancialStatementProvider CreateProvider(string ticker, string cik, IMemoryCache cache, DateTimeOffset now, string? companyFactsJson = null)
+    private static HybridFinancialStatementProvider CreateProvider(string ticker, string cik, IMemoryCache cache, DateTimeOffset now, string? companyFactsJson = null, DateOnly? asOf = null)
     {
         var companyFacts = companyFactsJson ?? ReadFixture(ticker);
         var secClient = new SecEdgarClient(
@@ -133,8 +150,22 @@ public sealed class SecFinancialStatementFixtureTests
             cache,
             NullLogger<SecEdgarClient>.Instance);
 
+        var context = new JobExecutionContextAccessor
+        {
+            Current = new JobExecutionContext
+            {
+                JobId = Guid.NewGuid(),
+                Identifier = ticker,
+                CorrelationId = Guid.NewGuid().ToString("N"),
+                ExecutionMode = ResearchExecutionMode.Hybrid,
+                ResolvedTicker = new(ticker, $"{ticker} Inc.", "Nasdaq", cik),
+                AsOf = asOf
+            }
+        };
+
         return new HybridFinancialStatementProvider(
             new MockFinancialStatementProvider(new MockResearchSeedCatalog()),
+            context,
             secClient,
             new FakeTimeProvider(now),
             NullLogger<HybridFinancialStatementProvider>.Instance);

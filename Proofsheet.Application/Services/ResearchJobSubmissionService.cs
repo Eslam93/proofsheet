@@ -13,6 +13,9 @@ namespace Proofsheet.Application.Services;
 
 public sealed class ResearchJobSubmissionService : IResearchJobSubmissionService
 {
+    // SEC began requiring XBRL financial data in 2009; before it there is nothing to select from.
+    private static readonly DateOnly EarliestAsOf = new(2009, 6, 15);
+
     private readonly IIdentifierValidator _identifierValidator;
     private readonly ITickerDirectoryService _tickerDirectoryService;
     private readonly IResearchExecutionModeResolver _executionModeResolver;
@@ -64,6 +67,7 @@ public sealed class ResearchJobSubmissionService : IResearchJobSubmissionService
     public async Task<ResearchJobSubmissionResult> SubmitAsync(
         string? identifier,
         ResearchMode? researchMode,
+        DateOnly? asOf,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -72,6 +76,19 @@ public sealed class ResearchJobSubmissionService : IResearchJobSubmissionService
         if (!validation.IsValid)
         {
             return ResearchJobSubmissionResult.Rejected(validation.Problem!);
+        }
+
+        // The date is fixed at submission, so the job reads the same filings however long it waits in the queue.
+        var today = DateOnly.FromDateTime(_timeProvider.GetUtcNow().UtcDateTime);
+        var effectiveAsOf = asOf ?? today;
+        if (effectiveAsOf > today)
+        {
+            return ResearchJobSubmissionResult.Rejected(InvalidAsOf("The as-of date cannot be in the future."));
+        }
+
+        if (effectiveAsOf < EarliestAsOf)
+        {
+            return ResearchJobSubmissionResult.Rejected(InvalidAsOf($"The as-of date cannot be before {EarliestAsOf:yyyy-MM-dd}, when SEC XBRL financial data begins."));
         }
 
         var normalizedIdentifier = validation.NormalizedIdentifier!;
@@ -112,7 +129,7 @@ public sealed class ResearchJobSubmissionService : IResearchJobSubmissionService
         }
         while (!_jobStore.TryAdd(record));
 
-        if (!_jobQueue.TryEnqueue(new ResearchJobQueueItem(record.JobId, record.Identifier, record.CorrelationId, effectiveResearchMode, executionMode, resolvedTicker)))
+        if (!_jobQueue.TryEnqueue(new ResearchJobQueueItem(record.JobId, record.Identifier, record.CorrelationId, effectiveResearchMode, executionMode, resolvedTicker, effectiveAsOf)))
         {
             _jobStore.TryRemove(record.JobId);
             _logger.LogWarning(
@@ -147,4 +164,7 @@ public sealed class ResearchJobSubmissionService : IResearchJobSubmissionService
                 $"/api/v1/research-jobs/{record.JobId}",
                 $"/api/v1/research-jobs/{record.JobId}/result"));
     }
+
+    private static ProblemDescriptor InvalidAsOf(string detail) =>
+        new(400, "/problems/invalid-request", "Invalid request.", detail, "InvalidRequest");
 }

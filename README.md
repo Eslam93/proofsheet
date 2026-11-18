@@ -99,7 +99,7 @@ Every setting and its default is listed in the [reference](docs/reference.md#con
 
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/api/v1/research-jobs` | Submit a job, for example `{ "identifier": "AAPL", "researchMode": "Standard" }` |
+| `POST` | `/api/v1/research-jobs` | Submit a job, for example `{ "identifier": "AAPL", "researchMode": "Standard", "asOf": "2026-11-06" }`. Only data filed on or before `asOf` (default: today) is used, so the same date gives the same figures. |
 | `GET` | `/api/v1/research-jobs/{jobId}` | Status, current step, warnings and trace |
 | `GET` | `/api/v1/research-jobs/{jobId}/result` | The finished report (`202` while the job runs) |
 | `GET` | `/api/v1/tickers/search?q=ap` | Ticker and company search |

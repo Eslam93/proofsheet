@@ -48,7 +48,7 @@ public sealed class ResearchJobsController : ControllerBase
                     "InvalidRequest"));
         }
 
-        var result = await _submissionService.SubmitAsync(request?.Identifier, request?.ResearchMode, cancellationToken);
+        var result = await _submissionService.SubmitAsync(request?.Identifier, request?.ResearchMode, request?.AsOf, cancellationToken);
         if (result.IsAccepted)
         {
             return Accepted(result.AcceptedResponse!.StatusUrl, result.AcceptedResponse);

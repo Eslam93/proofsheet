@@ -12,4 +12,5 @@ public sealed record ResearchJobQueueItem(
     string CorrelationId,
     ResearchMode ResearchMode,
     ResearchExecutionMode ExecutionMode,
-    ResolvedTickerInfo ResolvedTicker);
+    ResolvedTickerInfo ResolvedTicker,
+    DateOnly? AsOf = null);

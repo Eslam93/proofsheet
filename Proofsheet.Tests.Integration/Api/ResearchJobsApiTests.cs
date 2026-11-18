@@ -295,6 +295,35 @@ public sealed class ResearchJobsApiTests
         Assert.Equal(5, result.ProviderUsage.Count);
     }
 
+    [Fact]
+    public async Task Report_Records_The_As_Of_Date_It_Was_Built_For()
+    {
+        await using var factory = new ProofsheetWebApplicationFactory();
+        using var client = factory.CreateClient();
+
+        using var withDate = await client.PostAsJsonAsync("/api/v1/research-jobs", new SubmitResearchJobRequest { Identifier = "NORTHWIND", AsOf = new DateOnly(2026, 1, 15) });
+        withDate.EnsureSuccessStatusCode();
+        var dated = (await withDate.Content.ReadFromJsonAsync<ResearchJobAcceptedResponse>(JsonOptions))!;
+        var undated = await SubmitAsync(client, "NORTHWIND");
+
+        Assert.Equal(new DateOnly(2026, 1, 15), (await WaitForCompletedResultAsync(client, dated.JobId)).AsOf);
+        Assert.Equal(DateOnly.FromDateTime(DateTime.UtcNow), (await WaitForCompletedResultAsync(client, undated.JobId)).AsOf);
+    }
+
+    [Theory]
+    [InlineData("2999-01-01", "cannot be in the future")]
+    [InlineData("2008-12-31", "SEC XBRL financial data begins")]
+    public async Task As_Of_Date_Outside_The_Filing_Record_Is_Refused(string asOf, string reason)
+    {
+        await using var factory = new ProofsheetWebApplicationFactory();
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync("/api/v1/research-jobs", new { identifier = "NORTHWIND", asOf });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains(reason, await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
     private static async Task<ResearchJobAcceptedResponse> SubmitAsync(HttpClient client, string identifier, ResearchMode? researchMode = null)
     {
         using var response = await client.PostAsJsonAsync("/api/v1/research-jobs", new SubmitResearchJobRequest { Identifier = identifier, ResearchMode = researchMode });

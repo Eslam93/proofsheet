@@ -89,7 +89,8 @@ public sealed class ResearchJobProcessor : IResearchJobProcessor
             Identifier = item.Identifier,
             CorrelationId = item.CorrelationId,
             ExecutionMode = item.ExecutionMode,
-            ResolvedTicker = item.ResolvedTicker
+            ResolvedTicker = item.ResolvedTicker,
+            AsOf = item.AsOf
         };
 
         _logger.LogInformation(
@@ -112,16 +113,17 @@ public sealed class ResearchJobProcessor : IResearchJobProcessor
                         "Planning"));
 
                 var autonomousResult = await _autonomousResearchOrchestrator.ExecuteAsync(item, jobToken);
+                var autonomousReport = autonomousResult.Result with { AsOf = item.AsOf };
                 UpdateRecord(
                     item.JobId,
                     record => ResearchJobStateMachine.MarkCompleted(
                         record,
-                        autonomousResult.Result.GeneratedAtUtc,
-                        autonomousResult.Result,
+                        autonomousReport.GeneratedAtUtc,
+                        autonomousReport,
                         autonomousResult.Warnings,
                         autonomousResult.Trace));
 
-                _logger.LogInformation("Completed autonomous research job {JobId} with signal {Signal}", item.JobId, autonomousResult.Result.Signal);
+                _logger.LogInformation("Completed autonomous research job {JobId} with signal {Signal}", item.JobId, autonomousReport.Signal);
                 return;
             }
 
@@ -203,7 +205,7 @@ public sealed class ResearchJobProcessor : IResearchJobProcessor
                     : $"Final reflection confirmed source linkage and confidence {reasoningResult.Confidence}.");
 
             AddTrace(trace, WorkflowStep.Completion, TraceStatus.Completed, $"Completed research job with signal {reasoningResult.Signal} and confidence {reasoningResult.Confidence}.");
-            var completedResult = BuildCompletedResult(item.Identifier, warnings, trace, evidence, reasoningResult, providerResults);
+            var completedResult = BuildCompletedResult(item.Identifier, warnings, trace, evidence, reasoningResult, providerResults) with { AsOf = item.AsOf };
 
             UpdateRecord(
                 item.JobId,

@@ -20,5 +20,8 @@ public sealed class JobExecutionContext
 
     public required ResolvedTickerInfo ResolvedTicker { get; init; }
 
+    /// <summary>Only data filed on or before this date counts. Null means today.</summary>
+    public DateOnly? AsOf { get; init; }
+
     public bool ConsumeTransientFailure(string key) => _consumedTransientFailureKeys.Add(key);
 }

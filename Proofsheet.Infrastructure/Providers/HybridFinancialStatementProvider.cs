@@ -146,7 +146,8 @@ public sealed class HybridFinancialStatementProvider : IFinancialStatementProvid
             }
             else
             {
-                TryBuildLiveStatement(identifier, companyFacts, _timeProvider.GetUtcNow(), out statement, out unavailableReason);
+                var asOf = _jobExecutionContextAccessor.Current?.AsOf ?? DateOnly.FromDateTime(_timeProvider.GetUtcNow().UtcDateTime);
+                TryBuildLiveStatement(identifier, companyFacts, AsOfCutoff(asOf), out statement, out unavailableReason);
             }
 
             if (statement is null)
@@ -168,15 +169,19 @@ public sealed class HybridFinancialStatementProvider : IFinancialStatementProvid
         }
     }
 
+    // Filed dates carry no time of day, so a cutoff at midnight of the as-of date keeps the facts filed on that date.
+    internal static DateTimeOffset AsOfCutoff(DateOnly asOf) =>
+        new(asOf.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+
     private static bool TryBuildLiveStatement(
         string identifier,
         SecCompanyFactsData companyFacts,
-        DateTimeOffset now,
+        DateTimeOffset asOf,
         [NotNullWhen(true)] out FinancialStatement? financialStatement,
         [NotNullWhen(false)] out string? unavailableReason)
     {
         financialStatement = null;
-        var facts = companyFacts.CompanyFactsRoot;
+        var facts = new SecFactsAsOf(companyFacts.CompanyFactsRoot, asOf);
 
         if (!SecFactSelector.TryGetLatestFiscalYearPair(facts, RevenueConcepts, SecFactSelector.Usd, out var revenue, out var previousRevenue))
         {
@@ -200,7 +205,7 @@ public sealed class HybridFinancialStatementProvider : IFinancialStatementProvid
             return false;
         }
 
-        var staleCutoff = now.AddMonths(-MaxFiscalYearAgeMonths);
+        var staleCutoff = asOf.AddMonths(-MaxFiscalYearAgeMonths);
         if (fiscalYearEnd <= staleCutoff)
         {
             unavailableReason = $"the latest fiscal year ended on {fiscalYearEndText}, more than {MaxFiscalYearAgeMonths} months ago";
@@ -303,7 +308,7 @@ public sealed class HybridFinancialStatementProvider : IFinancialStatementProvid
     // Total debt at the fiscal year end. A reported total can still leave out current maturities or commercial paper,
     // so it is compared with the non-current part plus the current part, and the larger figure is used.
     private static bool TryGetDebt(
-        JsonElement facts,
+        SecFactsAsOf facts,
         DateTimeOffset fiscalYearEnd,
         bool annualReportsOnly,
         [NotNullWhen(true)] out SecFactPoint? debt)

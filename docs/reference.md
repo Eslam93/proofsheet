@@ -255,6 +255,7 @@ Notes:
 - `researchMode` is optional
 - allowed research modes are `Standard` and `Autonomous`
 - if omitted, `Standard` is used
+- `asOf` is optional (`yyyy-MM-dd`, default today): only SEC facts filed on or before that date are read, and the staleness check measures from it, so the same date gives the same figures. A future date, or one before 2009-06-15 when XBRL data begins, is refused with `400`. The completed report records it as `asOf`.
 
 Success returns `202 Accepted`:
 
