@@ -945,7 +945,10 @@
         }
 
         if (error.message) {
-            return error.message;
+            // SignalR wraps the server's text as "An unexpected error occurred invoking 'X' on the server. HubException: ...".
+            const marker = "HubException: ";
+            const index = error.message.indexOf(marker);
+            return index >= 0 ? error.message.slice(index + marker.length) : error.message;
         }
 
         return "The chat request failed.";
