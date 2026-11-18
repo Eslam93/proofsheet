@@ -137,6 +137,7 @@
             insights: document.getElementById("report-insights"),
             sources: document.getElementById("report-sources"),
             providerUsage: document.getElementById("report-provider-usage"),
+            dataLabel: document.getElementById("report-data-label"),
             chatTranscript: document.getElementById("chat-transcript"),
             chatEmptyState: document.getElementById("chat-empty-state"),
             chatWelcome: document.getElementById("chat-welcome"),
@@ -312,6 +313,7 @@
         elements.signalCard.className = `metric-card metric-card--signal metric-card--${String(result.signal || "").toLowerCase()}`;
         elements.confidenceCard.className = `metric-card metric-card--confidence metric-card--${confidenceBand(result.confidence)}`;
         elements.thesis.textContent = result.thesis;
+        renderDataLabel(result, elements.dataLabel);
         elements.signalRationale.textContent = result.signalDetails?.rationale || "Signal rationale was not provided.";
         elements.confidenceRationale.textContent = result.confidenceDetails?.rationale || "Confidence rationale was not provided.";
         elements.confidenceBounds.textContent = result.confidenceDetails
@@ -359,6 +361,29 @@
             ].join("");
             elements.providerUsage.appendChild(item);
         });
+    }
+
+    // Says what the report's data is, from the origin each domain actually came from, so fictional sample data can
+    // never pass for a real company's figures.
+    function renderDataLabel(result, label) {
+        const usages = (result.providerUsage || []).filter((usage) => usage.status === "Success");
+        const sample = usages.filter((usage) => usage.origin === "Mock");
+        let text;
+        let kind;
+        if (usages.length > 0 && sample.length === usages.length) {
+            kind = "sample";
+            text = "Fictional sample data. This company and every figure, headline and filing excerpt in this report are invented to show how Proofsheet works.";
+        } else if (sample.length > 0) {
+            kind = "sample";
+            text = `Partly fictional sample data: ${sample.map((usage) => humanizeToken(usage.domain).toLowerCase()).join(", ")} came from sample data; the rest is live data retrieved ${formatDate(result.generatedAtUtc)}.`;
+        } else {
+            kind = "live";
+            const providers = [...new Set(usages.map((usage) => sourceProviderLabel(usage.providerName)))];
+            text = `Live data from ${providers.join(", ")}, retrieved ${formatDate(result.generatedAtUtc)}.`;
+        }
+
+        label.textContent = `${text} Not investment advice.`;
+        label.className = `data-label data-label--${kind}`;
     }
 
     function renderWarnings(warnings, warningsList) {
@@ -928,7 +953,7 @@
     }
 
     function sourceProviderLabel(value) {
-        return value === "SeededMock" ? "Seeded Mock" : value;
+        return value === "SeededMock" ? "Fictional sample data" : value;
     }
 
     function scrollTranscript(container) {

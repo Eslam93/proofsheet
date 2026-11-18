@@ -19,16 +19,16 @@ public sealed class ResearchJobsApiTests
     private static readonly JsonSerializerOptions JsonOptions = BuildJsonOptions();
 
     [Fact]
-    public async Task Submit_Poll_Result_Succeeds_For_Aapl()
+    public async Task Submit_Poll_Result_Succeeds_For_A_Sample_Company()
     {
         await using var factory = new ProofsheetWebApplicationFactory();
         using var client = factory.CreateClient();
 
-        var accepted = await SubmitAsync(client, "AAPL");
+        var accepted = await SubmitAsync(client, "NORTHWIND");
         var result = await WaitForCompletedResultAsync(client, accepted.JobId);
 
-        Assert.Equal("Apple Inc.", result.Company);
-        Assert.Equal("AAPL", result.Identifier);
+        Assert.Equal("Northwind Instruments (fictional)", result.Company);
+        Assert.Equal("NORTHWIND", result.Identifier);
         Assert.Equal(InvestmentSignal.Bullish, result.Signal);
         Assert.InRange(result.Confidence, 0, 100);
         Assert.InRange(result.Insights.Count, 2, 5);
@@ -59,7 +59,7 @@ public sealed class ResearchJobsApiTests
             });
         using var client = factory.CreateClient();
 
-        var accepted = await SubmitAsync(client, "AAPL");
+        var accepted = await SubmitAsync(client, "NORTHWIND");
         using var response = await client.GetAsync($"/api/v1/research-jobs/{accepted.JobId}/result");
 
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
@@ -82,7 +82,7 @@ public sealed class ResearchJobsApiTests
             });
         using var client = factory.CreateClient();
 
-        var accepted = await SubmitAsync(client, "AAPL");
+        var accepted = await SubmitAsync(client, "NORTHWIND");
         await WaitForRunningStatusAsync(client, accepted.JobId);
 
         using var response = await client.GetAsync($"/api/v1/research-jobs/{accepted.JobId}");
@@ -106,7 +106,7 @@ public sealed class ResearchJobsApiTests
             });
         using var client = factory.CreateClient();
 
-        var accepted = await SubmitAsync(client, "AAPL");
+        var accepted = await SubmitAsync(client, "NORTHWIND");
         var response = await WaitForTerminalResponseAsync(client, accepted.JobId);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
@@ -157,11 +157,11 @@ public sealed class ResearchJobsApiTests
             });
         using var client = factory.CreateClient();
 
-        var first = await SubmitAsync(client, "AAPL");
+        var first = await SubmitAsync(client, "NORTHWIND");
         await WaitForRunningStatusAsync(client, first.JobId);
-        var second = await SubmitAsync(client, "MSFT");
+        var second = await SubmitAsync(client, "FABRIKAM");
 
-        using var response = await client.PostAsJsonAsync("/api/v1/research-jobs", new SubmitResearchJobRequest { Identifier = "NVDA" });
+        using var response = await client.PostAsJsonAsync("/api/v1/research-jobs", new SubmitResearchJobRequest { Identifier = "TAILSPIN" });
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         Assert.Equal("5", response.Headers.RetryAfter?.Delta?.TotalSeconds.ToString("0"));
@@ -171,12 +171,12 @@ public sealed class ResearchJobsApiTests
     }
 
     [Fact]
-    public async Task Tsla_Degraded_Scenario_Succeeds_With_Required_Warnings_And_Trace()
+    public async Task Degraded_Sample_Scenario_Succeeds_With_Required_Warnings_And_Trace()
     {
         await using var factory = new ProofsheetWebApplicationFactory();
         using var client = factory.CreateClient();
 
-        var accepted = await SubmitAsync(client, "TSLA");
+        var accepted = await SubmitAsync(client, "CONTOSO");
         var result = await WaitForCompletedResultAsync(client, accepted.JobId);
 
         Assert.Equal(InvestmentSignal.Neutral, result.Signal);
@@ -198,7 +198,7 @@ public sealed class ResearchJobsApiTests
             });
         using var client = factory.CreateClient();
 
-        var accepted = await SubmitAsync(client, "AAPL");
+        var accepted = await SubmitAsync(client, "NORTHWIND");
         var result = await WaitForCompletedResultAsync(client, accepted.JobId);
 
         Assert.Contains(result.Warnings, warning => warning.Contains("Deterministic synthesis was used instead.", StringComparison.Ordinal));
@@ -217,7 +217,7 @@ public sealed class ResearchJobsApiTests
             });
         using var client = factory.CreateClient();
 
-        var accepted = await SubmitAsync(client, "AAPL");
+        var accepted = await SubmitAsync(client, "NORTHWIND");
         var result = await WaitForCompletedResultAsync(client, accepted.JobId);
 
         var marketUsage = Assert.Single(result.ProviderUsage, usage => usage.Domain == SourceType.MarketSnapshot);
@@ -251,7 +251,7 @@ public sealed class ResearchJobsApiTests
             JsonDocument.Parse("""
                 {
                   "id": "resp_spec_1",
-                  "output_text": "{\"thesis\":\"Apple retains resilient ecosystem economics while mixed near-term signals keep expectations disciplined.\",\"signal\":\"Bullish\",\"confidence\":86,\"insights\":[\"Financial execution remains strong.\",\"Services and ecosystem breadth continue to support resilience.\",\"Near-term market noise does not outweigh the current evidence.\"],\"thesisDetails\":{\"summary\":\"Thesis supported by financials, profile, and filings.\",\"sourceIds\":[\"financials:AAPL\",\"profile:AAPL\",\"filing:AAPL:001\"]},\"insightDetails\":[{\"insight\":\"Financial execution remains strong.\",\"sourceIds\":[\"financials:AAPL\"]},{\"insight\":\"Services and ecosystem breadth continue to support resilience.\",\"sourceIds\":[\"profile:AAPL\",\"news:AAPL:001\"]},{\"insight\":\"Near-term market noise does not outweigh the current evidence.\",\"sourceIds\":[\"financials:AAPL\",\"filing:AAPL:001\"]}],\"signalDetails\":{\"rationale\":\"Financials and profile context remain supportive overall.\",\"sourceIds\":[\"financials:AAPL\",\"profile:AAPL\"]},\"confidenceDetails\":{\"rationale\":\"Confidence stays solid because the evidence package is complete and well-cited.\",\"sourceIds\":[\"financials:AAPL\",\"filing:AAPL:001\"]}}"
+                  "output_text": "{\"thesis\":\"Northwind retains resilient service economics while mixed near-term signals keep expectations disciplined.\",\"signal\":\"Bullish\",\"confidence\":86,\"insights\":[\"Financial execution remains strong.\",\"Services and ecosystem breadth continue to support resilience.\",\"Near-term market noise does not outweigh the current evidence.\"],\"thesisDetails\":{\"summary\":\"Thesis supported by financials, profile, and filings.\",\"sourceIds\":[\"financials:NORTHWIND\",\"profile:NORTHWIND\",\"filing:NORTHWIND:001\"]},\"insightDetails\":[{\"insight\":\"Financial execution remains strong.\",\"sourceIds\":[\"financials:NORTHWIND\"]},{\"insight\":\"Services and ecosystem breadth continue to support resilience.\",\"sourceIds\":[\"profile:NORTHWIND\",\"news:NORTHWIND:001\"]},{\"insight\":\"Near-term market noise does not outweigh the current evidence.\",\"sourceIds\":[\"financials:NORTHWIND\",\"filing:NORTHWIND:001\"]}],\"signalDetails\":{\"rationale\":\"Financials and profile context remain supportive overall.\",\"sourceIds\":[\"financials:NORTHWIND\",\"profile:NORTHWIND\"]},\"confidenceDetails\":{\"rationale\":\"Confidence stays solid because the evidence package is complete and well-cited.\",\"sourceIds\":[\"financials:NORTHWIND\",\"filing:NORTHWIND:001\"]}}"
                 }
                 """),
             JsonDocument.Parse("""
@@ -276,7 +276,7 @@ public sealed class ResearchJobsApiTests
             });
         using var client = factory.CreateClient();
 
-        var accepted = await SubmitAsync(client, "AAPL", ResearchMode.Autonomous);
+        var accepted = await SubmitAsync(client, "NORTHWIND", ResearchMode.Autonomous);
         var result = await WaitForCompletedResultAsync(client, accepted.JobId);
 
         Assert.Equal(ResearchMode.Autonomous, result.OrchestrationDetails.ResearchMode);

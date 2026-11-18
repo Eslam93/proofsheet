@@ -56,6 +56,36 @@ textarea {
     display: none !important;
 }
 
+.app-shell__footer {
+    max-width: 88rem;
+    margin: 0 auto;
+    padding: 1.5rem clamp(1rem, 2vw, 2rem) 2rem;
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.app-shell__footer p {
+    margin: 0;
+}
+
+.data-label {
+    margin: 0;
+    padding: 0.7rem 0.9rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--line);
+    font-size: 0.92rem;
+    line-height: 1.45;
+}
+
+.data-label--sample {
+    background: var(--warning-soft);
+    border-color: rgba(255, 182, 87, 0.45);
+}
+
+.data-label--live {
+    background: var(--accent-soft);
+}
+
 .app-shell__header {
     padding: 1.4rem clamp(1rem, 2vw, 2rem) 0.4rem;
 }

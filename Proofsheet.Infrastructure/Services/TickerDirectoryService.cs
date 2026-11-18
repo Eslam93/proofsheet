@@ -50,7 +50,7 @@ public sealed class TickerDirectoryService : ITickerDirectoryService
         }
 
         var normalized = query.Trim();
-        return new[] { "AAPL", "MSFT", "NVDA", "TSLA", "JPM", "AMZN", "GOOGL", "AMD", "XOM", "UNH" }
+        return _seedCatalog.Identifiers
             .Select(symbol => _seedCatalog.TryGet(symbol, out var seed)
                 ? new TickerSearchItemResponse(seed.CompanyProfile.Identifier, seed.CompanyProfile.CompanyName, seed.CompanyProfile.Exchange, seed.CompanyProfile.CikPadded)
                 : null)

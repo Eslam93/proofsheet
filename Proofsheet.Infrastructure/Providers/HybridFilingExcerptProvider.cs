@@ -58,14 +58,14 @@ public sealed class HybridFilingExcerptProvider : IFilingExcerptProvider
         {
             return mode == ResearchExecutionMode.LiveRequired
                 ? ProviderResult<FilingCoverage>.TransientFailure("SEC EDGAR filing provider is disabled.", false, ProviderOrigin.Live, "SEC EDGAR")
-                : fallback;
+                : HybridFallback.WhenDisabled(fallback, "SEC EDGAR filing provider is disabled.", "SEC EDGAR");
         }
 
         if (!_secEdgarClient.IsConfigured)
         {
             return mode == ResearchExecutionMode.LiveRequired
                 ? ProviderResult<FilingCoverage>.TransientFailure("SEC EDGAR was enabled but no valid User-Agent was configured.", false, ProviderOrigin.Live, "SEC EDGAR")
-                : ToMockFallback(fallback, "SEC EDGAR was enabled but no valid User-Agent was configured.");
+                : HybridFallback.FromSample(fallback, "SEC EDGAR was enabled but no valid User-Agent was configured.", "SEC EDGAR");
         }
 
         try
@@ -75,7 +75,7 @@ public sealed class HybridFilingExcerptProvider : IFilingExcerptProvider
             {
                 return mode == ResearchExecutionMode.LiveRequired
                     ? ProviderResult<FilingCoverage>.Empty(errorMessage: "SEC EDGAR did not return recent filings.", origin: ProviderOrigin.Live, providerName: "SEC EDGAR")
-                    : ToMockFallback(fallback, "SEC EDGAR did not return recent filings, so the seeded mock filing coverage was used.");
+                    : HybridFallback.FromSample(fallback, "SEC EDGAR did not return recent filings, so the seeded mock filing coverage was used.", "SEC EDGAR");
             }
 
             var selectedFilings = submissions.RecentFilings
@@ -131,17 +131,9 @@ public sealed class HybridFilingExcerptProvider : IFilingExcerptProvider
             _logger.LogWarning(ex, "Falling back to mock filing coverage for {Identifier}.", identifier);
             return mode == ResearchExecutionMode.LiveRequired
                 ? ProviderResult<FilingCoverage>.TransientFailure("SEC EDGAR filing retrieval failed.", false, ProviderOrigin.Live, "SEC EDGAR")
-                : ToMockFallback(fallback, "SEC EDGAR filing retrieval failed, so the seeded mock filing coverage was used.");
+                : HybridFallback.FromSample(fallback, "SEC EDGAR filing retrieval failed, so the seeded mock filing coverage was used.", "SEC EDGAR");
         }
     }
-
-    private static ProviderResult<FilingCoverage> ToMockFallback(ProviderResult<FilingCoverage> fallback, string reason) =>
-        ProviderResult<FilingCoverage>.Success(
-            fallback.Value!,
-            fallback.Origin,
-            fallback.ProviderName,
-            true,
-            reason);
 
     private static IJobExecutionContextAccessor CreateHybridContextAccessor()
     {

@@ -72,9 +72,11 @@ public sealed class SecFinancialStatementFixtureTests
 
         var result = await CreateProvider(ticker, cik, cache, CapturedOn).GetAsync(ticker, CancellationToken.None);
 
-        Assert.True(result.FallbackOccurred);
-        Assert.Equal(ProviderOrigin.Mock, result.Origin);
-        Assert.Contains("financial facts were incomplete", result.FallbackReason, StringComparison.Ordinal);
+        // A real company never gets invented figures: the statement is refused, with the reason.
+        Assert.Null(result.Value);
+        Assert.False(result.FallbackOccurred);
+        Assert.Equal(ProviderOrigin.Live, result.Origin);
+        Assert.Contains("financial facts were incomplete", result.ErrorMessage, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -85,8 +87,8 @@ public sealed class SecFinancialStatementFixtureTests
 
         var result = await CreateProvider("AAPL", "0000320193", cache, twentyMonthsAfterFiscalYearEnd).GetAsync("AAPL", CancellationToken.None);
 
-        Assert.True(result.FallbackOccurred);
-        Assert.Contains("the latest fiscal year ended on 2026-09-26, more than 18 months ago", result.FallbackReason, StringComparison.Ordinal);
+        Assert.Null(result.Value);
+        Assert.Contains("the latest fiscal year ended on 2026-09-26, more than 18 months ago", result.ErrorMessage, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -105,8 +107,8 @@ public sealed class SecFinancialStatementFixtureTests
 
         var result = await CreateProvider("AAPL", "0000320193", cache, CapturedOn, companyFacts.ToJsonString()).GetAsync("AAPL", CancellationToken.None);
 
-        Assert.True(result.FallbackOccurred);
-        Assert.Contains("no revenue for the fiscal year ending 2026-09-26; the newest revenue on file is for 2025-09-27", result.FallbackReason, StringComparison.Ordinal);
+        Assert.Null(result.Value);
+        Assert.Contains("no revenue for the fiscal year ending 2026-09-26; the newest revenue on file is for 2025-09-27", result.ErrorMessage, StringComparison.Ordinal);
     }
 
     private static string ReadFixture(string ticker) =>

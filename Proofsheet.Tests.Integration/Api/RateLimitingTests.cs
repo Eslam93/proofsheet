@@ -71,7 +71,7 @@ public sealed class RateLimitingTests
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/research-jobs")
         {
-            Content = JsonContent.Create(new SubmitResearchJobRequest { Identifier = "AAPL" })
+            Content = JsonContent.Create(new SubmitResearchJobRequest { Identifier = "NORTHWIND" })
         };
         if (clientAddress is not null)
         {

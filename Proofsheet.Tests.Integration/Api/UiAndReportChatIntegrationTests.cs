@@ -31,10 +31,39 @@ public sealed class UiAndReportChatIntegrationTests
         var home = await client.GetStringAsync("/");
         Assert.Contains("Generate an investment report", home, StringComparison.OrdinalIgnoreCase);
 
-        var accepted = await SubmitAsync(client, "AAPL");
+        var accepted = await SubmitAsync(client, "NORTHWIND");
         var reportPage = await client.GetStringAsync($"/reports/{accepted.JobId}");
         Assert.Contains("Progress", reportPage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Chat", reportPage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Pages_Say_The_Data_Is_Fictional_And_Not_Investment_Advice()
+    {
+        await using var factory = new ProofsheetWebApplicationFactory();
+        using var client = factory.CreateClient();
+
+        var home = await client.GetStringAsync("/");
+        Assert.Contains("only knows fictional sample companies", home, StringComparison.Ordinal);
+        Assert.Contains("CONTOSO, FABRIKAM, NORTHWIND, TAILSPIN", home, StringComparison.Ordinal);
+        Assert.Contains("value=\"NORTHWIND\"", home, StringComparison.Ordinal);
+        Assert.Contains("Nothing it shows is investment advice.", home, StringComparison.Ordinal);
+
+        var accepted = await SubmitAsync(client, "NORTHWIND");
+        var reportPage = await client.GetStringAsync($"/reports/{accepted.JobId}");
+        Assert.Contains("id=\"report-data-label\"", reportPage, StringComparison.Ordinal);
+        Assert.Contains("Nothing it shows is investment advice.", reportPage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Real_Company_Gets_No_Report_From_Sample_Data()
+    {
+        await using var factory = new ProofsheetWebApplicationFactory();
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync("/api/v1/research-jobs", new SubmitResearchJobRequest { Identifier = "AAPL" });
+
+        Assert.Equal(System.Net.HttpStatusCode.UnprocessableEntity, response.StatusCode);
     }
 
     [Fact]
@@ -51,7 +80,7 @@ public sealed class UiAndReportChatIntegrationTests
             });
         using var client = factory.CreateClient();
 
-        var accepted = await SubmitAsync(client, "AAPL");
+        var accepted = await SubmitAsync(client, "NORTHWIND");
         await WaitForCompletedResultAsync(client, accepted.JobId);
 
         await using var connection = BuildConnection(factory, client.BaseAddress!);
@@ -68,7 +97,7 @@ public sealed class UiAndReportChatIntegrationTests
         var finalMessage = await chatMessageSource.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         Assert.Equal(thread.JobId, finalMessage.JobId);
-        Assert.Contains("financials:AAPL", finalMessage.CitedSourceIds);
+        Assert.Contains("financials:NORTHWIND", finalMessage.CitedSourceIds);
         Assert.Contains(receivedEvents, evt => evt.Kind == "delta");
         Assert.Contains(receivedEvents, evt => evt.Kind == "done");
 
@@ -93,7 +122,7 @@ public sealed class UiAndReportChatIntegrationTests
             });
         using var client = factory.CreateClient();
 
-        var accepted = await SubmitAsync(client, "AAPL");
+        var accepted = await SubmitAsync(client, "NORTHWIND");
 
         await using var connection = BuildConnection(factory, client.BaseAddress!);
         await connection.StartAsync();
@@ -118,7 +147,7 @@ public sealed class UiAndReportChatIntegrationTests
             });
         using var client = factory.CreateClient();
 
-        var accepted = await SubmitAsync(client, "AAPL");
+        var accepted = await SubmitAsync(client, "NORTHWIND");
         await WaitForCompletedResultAsync(client, accepted.JobId);
 
         await using var senderConnection = BuildConnection(factory, client.BaseAddress!);
@@ -164,7 +193,7 @@ public sealed class UiAndReportChatIntegrationTests
             });
         using var client = factory.CreateClient();
 
-        var accepted = await SubmitAsync(client, "AAPL");
+        var accepted = await SubmitAsync(client, "NORTHWIND");
         await WaitForCompletedResultAsync(client, accepted.JobId);
 
         await using var connection = BuildConnection(factory, client.BaseAddress!);
@@ -211,7 +240,7 @@ public sealed class UiAndReportChatIntegrationTests
                 services.AddSingleton<IReportChatAvailabilityService>(new AlwaysEnabledReportChatAvailabilityService());
             });
         using var client = factory.CreateClient();
-        var accepted = await SubmitAsync(client, "AAPL");
+        var accepted = await SubmitAsync(client, "NORTHWIND");
         await WaitForCompletedResultAsync(client, accepted.JobId);
         await using var connection = BuildConnection(factory, client.BaseAddress!);
         await connection.StartAsync();
@@ -238,7 +267,7 @@ public sealed class UiAndReportChatIntegrationTests
                 services.AddSingleton<IReportChatAvailabilityService>(new AlwaysEnabledReportChatAvailabilityService());
             });
         using var client = factory.CreateClient();
-        var accepted = await SubmitAsync(client, "AAPL");
+        var accepted = await SubmitAsync(client, "NORTHWIND");
         await WaitForCompletedResultAsync(client, accepted.JobId);
         await using var connection = BuildConnection(factory, client.BaseAddress!);
         await connection.StartAsync();
@@ -325,7 +354,7 @@ public sealed class UiAndReportChatIntegrationTests
             if (onProviderEvent is not null)
             {
                 await onProviderEvent(new ReportChatProviderEvent("response.output_text.delta", "resp_stream", "The thesis leans bullish because ", "{}"));
-                await onProviderEvent(new ReportChatProviderEvent("response.output_text.delta", "resp_stream", "financials:AAPL remains strong.", "{}"));
+                await onProviderEvent(new ReportChatProviderEvent("response.output_text.delta", "resp_stream", "financials:NORTHWIND remains strong.", "{}"));
             }
 
             if (_mode == StubChatMode.Cancelable)
@@ -341,8 +370,8 @@ public sealed class UiAndReportChatIntegrationTests
 
             return new ReportChatExecutionResult(
                 string.IsNullOrWhiteSpace(previousResponseId) ? "resp_test_1" : "resp_test_2",
-                "The report is bullish because the financial statement evidence is strong [financials:AAPL].",
-                ["financials:AAPL"]);
+                "The report is bullish because the financial statement evidence is strong [financials:NORTHWIND].",
+                ["financials:NORTHWIND"]);
         }
 
         public Task WaitUntilStartedAsync() => _started.Task;

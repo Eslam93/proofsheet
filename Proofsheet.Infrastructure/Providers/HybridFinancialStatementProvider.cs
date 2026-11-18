@@ -121,14 +121,14 @@ public sealed class HybridFinancialStatementProvider : IFinancialStatementProvid
         {
             return mode == ResearchExecutionMode.LiveRequired
                 ? ProviderResult<FinancialStatement>.TransientFailure("SEC EDGAR financial statement provider is disabled.", false, ProviderOrigin.Live, "SEC EDGAR")
-                : fallback;
+                : HybridFallback.WhenDisabled(fallback, "SEC EDGAR financial statement provider is disabled.", "SEC EDGAR");
         }
 
         if (!_secEdgarClient.IsConfigured)
         {
             return mode == ResearchExecutionMode.LiveRequired
                 ? ProviderResult<FinancialStatement>.TransientFailure("SEC EDGAR was enabled but no valid User-Agent was configured.", false, ProviderOrigin.Live, "SEC EDGAR")
-                : ToMockFallback(fallback, "SEC EDGAR was enabled but no valid User-Agent was configured.");
+                : HybridFallback.FromSample(fallback, "SEC EDGAR was enabled but no valid User-Agent was configured.", "SEC EDGAR");
         }
 
         try
@@ -150,7 +150,7 @@ public sealed class HybridFinancialStatementProvider : IFinancialStatementProvid
                 _logger.LogInformation("SEC EDGAR financial facts for {Identifier} were incomplete: {Reason}.", identifier, unavailableReason);
                 return mode == ResearchExecutionMode.LiveRequired
                     ? ProviderResult<FinancialStatement>.Empty(errorMessage: $"SEC EDGAR financial facts were incomplete: {unavailableReason}.", origin: ProviderOrigin.Live, providerName: "SEC EDGAR")
-                    : ToMockFallback(fallback, $"SEC EDGAR financial facts were incomplete ({unavailableReason}), so the seeded mock statements were used.");
+                    : HybridFallback.FromSample(fallback, $"SEC EDGAR financial facts were incomplete ({unavailableReason}), so the seeded mock statements were used.", "SEC EDGAR");
             }
 
             return ProviderResult<FinancialStatement>.Success(statement, ProviderOrigin.Live, "SEC EDGAR");
@@ -160,17 +160,9 @@ public sealed class HybridFinancialStatementProvider : IFinancialStatementProvid
             _logger.LogWarning(ex, "Falling back to mock financial statements for {Identifier}.", identifier);
             return mode == ResearchExecutionMode.LiveRequired
                 ? ProviderResult<FinancialStatement>.TransientFailure("SEC EDGAR financial statement retrieval failed.", false, ProviderOrigin.Live, "SEC EDGAR")
-                : ToMockFallback(fallback, "SEC EDGAR financial statement retrieval failed, so the seeded mock statements were used.");
+                : HybridFallback.FromSample(fallback, "SEC EDGAR financial statement retrieval failed, so the seeded mock statements were used.", "SEC EDGAR");
         }
     }
-
-    private static ProviderResult<FinancialStatement> ToMockFallback(ProviderResult<FinancialStatement> fallback, string reason) =>
-        ProviderResult<FinancialStatement>.Success(
-            fallback.Value!,
-            fallback.Origin,
-            fallback.ProviderName,
-            true,
-            reason);
 
     private static bool TryBuildLiveStatement(
         string identifier,

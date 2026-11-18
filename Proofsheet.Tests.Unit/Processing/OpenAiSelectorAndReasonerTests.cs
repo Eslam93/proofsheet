@@ -31,7 +31,7 @@ public sealed class OpenAiSelectorAndReasonerTests
         var responseJson = """
             {
               "id": "resp_1",
-              "output_text": "{\"thesis\":\"Rewritten thesis.\",\"signal\":\"Bullish\",\"confidence\":84,\"insights\":[\"Insight A.\",\"Insight B.\",\"Insight C.\"],\"thesisDetails\":{\"summary\":\"Thesis summary.\",\"sourceIds\":[\"financials:AAPL\",\"profile:AAPL\"]},\"insightDetails\":[{\"insight\":\"Insight A.\",\"sourceIds\":[\"financials:AAPL\"]},{\"insight\":\"Insight B.\",\"sourceIds\":[\"news:AAPL:001\"]},{\"insight\":\"Insight C.\",\"sourceIds\":[\"profile:AAPL\",\"filing:AAPL:001\"]}],\"signalDetails\":{\"rationale\":\"Signal is supported by financials and profile context.\",\"sourceIds\":[\"financials:AAPL\",\"profile:AAPL\"]},\"confidenceDetails\":{\"rationale\":\"Confidence is supported by strong evidence coverage.\",\"sourceIds\":[\"financials:AAPL\",\"filing:AAPL:001\"]}}"
+              "output_text": "{\"thesis\":\"Rewritten thesis.\",\"signal\":\"Bullish\",\"confidence\":84,\"insights\":[\"Insight A.\",\"Insight B.\",\"Insight C.\"],\"thesisDetails\":{\"summary\":\"Thesis summary.\",\"sourceIds\":[\"financials:NORTHWIND\",\"profile:NORTHWIND\"]},\"insightDetails\":[{\"insight\":\"Insight A.\",\"sourceIds\":[\"financials:NORTHWIND\"]},{\"insight\":\"Insight B.\",\"sourceIds\":[\"news:NORTHWIND:001\"]},{\"insight\":\"Insight C.\",\"sourceIds\":[\"profile:NORTHWIND\",\"filing:NORTHWIND:001\"]}],\"signalDetails\":{\"rationale\":\"Signal is supported by financials and profile context.\",\"sourceIds\":[\"financials:NORTHWIND\",\"profile:NORTHWIND\"]},\"confidenceDetails\":{\"rationale\":\"Confidence is supported by strong evidence coverage.\",\"sourceIds\":[\"financials:NORTHWIND\",\"filing:NORTHWIND:001\"]}}"
             }
             """;
         var reasoner = new OpenAiResearchReasoner(
@@ -45,7 +45,7 @@ public sealed class OpenAiSelectorAndReasonerTests
             }),
             new DeterministicResearchReasoner());
 
-        var result = await reasoner.SynthesizeAsync(TestEvidenceFactory.Create("AAPL"), CancellationToken.None);
+        var result = await reasoner.SynthesizeAsync(TestEvidenceFactory.Create("NORTHWIND"), CancellationToken.None);
 
         Assert.Equal("Rewritten thesis.", result.Thesis);
         Assert.Equal(["Insight A.", "Insight B.", "Insight C."], result.Insights);
