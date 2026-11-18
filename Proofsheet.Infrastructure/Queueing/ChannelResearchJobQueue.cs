@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 using System.Threading.Channels;
 using Proofsheet.Application.Abstractions;
 using Proofsheet.Application.Models;

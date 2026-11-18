@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 using Microsoft.Extensions.Options;
 using Proofsheet.Application.Models;
 using Proofsheet.Domain.Enums;

@@ -1,7 +1,14 @@
+<!--
+SPDX-FileCopyrightText: 2026 Eslam Hamed
+
+SPDX-License-Identifier: MIT
+-->
+
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <Authors>Eslam Hamed</Authors>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <!-- The ID keeps the project's original A.I.R.A name so existing local user secrets keep loading. -->

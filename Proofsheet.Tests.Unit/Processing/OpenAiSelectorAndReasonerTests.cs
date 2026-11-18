@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Proofsheet.Application.Abstractions;

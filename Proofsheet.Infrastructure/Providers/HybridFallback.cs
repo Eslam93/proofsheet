@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 using System.Text.RegularExpressions;
 using Proofsheet.Domain.Enums;
 using Proofsheet.Domain.Models;

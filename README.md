@@ -1,5 +1,7 @@
 # Proofsheet
 
+Built by **Eslam Hamed**, Technical Lead & AI Solutions Architect. More work: [eslamhamed.com](https://eslamhamed.com).
+
 Proofsheet is an AI research analyst for US public companies, built with .NET 10. Give it a ticker and it reads the company's financial statements from its SEC filings, runs the research as a background job you can follow step by step, and returns a structured report. The report's thesis, insights and signal each cite sources from the report, and the backend refuses a citation that does not exist. You can then chat with the finished report: the chat model is given only that report and tools that read it.
 
 > Proofsheet is a portfolio and research project. Nothing it produces is investment advice.
@@ -146,4 +148,4 @@ The [reference](docs/reference.md) keeps the full original documentation: archit
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE), by the [REUSE](https://reuse.software) convention: every file states its copyright and license, and CI checks it. The SEC company-facts fixtures in `Proofsheet.Tests.Unit/Fixtures/Sec` are data the companies filed with the SEC, not the author's work, so they keep their own origin in [REUSE.toml](REUSE.toml).

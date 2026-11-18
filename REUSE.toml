@@ -1,0 +1,27 @@
+version = 1
+SPDX-PackageName = "Proofsheet"
+SPDX-PackageSupplier = "Eslam Hamed <https://eslamhamed.com>"
+SPDX-PackageDownloadLocation = "https://github.com/Eslam93/proofsheet"
+
+# Files whose header could not sit in a comment, or should not: JSON has no comments, a comment in Markdown is hidden
+# from readers, Razor requires @page before anything else, and the prompt files are sent to the model exactly as
+# written.
+[[annotations]]
+path = [
+    "**/*.md",
+    "**/*.cshtml",
+    "**/*.json",
+    "Proofsheet.slnx",
+    "Proofsheet.Api/Prompts/*.txt",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Eslam Hamed"
+SPDX-License-Identifier = "MIT"
+
+# Company facts from SEC EDGAR, trimmed to the concepts the provider reads. The figures are what each company filed
+# with the SEC; none of it is the project's own work.
+[[annotations]]
+path = "Proofsheet.Tests.Unit/Fixtures/Sec/companyfacts-*.json"
+precedence = "override"
+SPDX-FileCopyrightText = "NONE"
+SPDX-License-Identifier = "LicenseRef-SEC-EDGAR-Data"

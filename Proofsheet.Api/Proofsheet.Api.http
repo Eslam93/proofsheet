@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Eslam Hamed
+#
+# SPDX-License-Identifier: MIT
+
 @Proofsheet.Api_HostAddress = http://localhost:5214
 
 POST {{Proofsheet.Api_HostAddress}}/api/v1/research-jobs

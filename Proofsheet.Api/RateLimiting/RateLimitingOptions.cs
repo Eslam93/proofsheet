@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 namespace Proofsheet.Api.RateLimiting;
 
 /// <summary>Per-address request limits. Every limit counts requests from one client address in a fixed window.</summary>

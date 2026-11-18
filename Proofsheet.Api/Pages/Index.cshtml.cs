@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Proofsheet.Application.Abstractions;
 using Proofsheet.Domain.Enums;

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 using System.Text.Json;
 using Proofsheet.Application.Models;
 using Microsoft.AspNetCore.Mvc;

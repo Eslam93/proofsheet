@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 // Independent reference for the SEC fixtures in this folder, written separately from the C# provider so the two can
 // check each other. It implements the same rules as Proofsheet.Infrastructure/Clients/SecFactSelector.cs and
 // Proofsheet.Infrastructure/Providers/HybridFinancialStatementProvider.cs.
