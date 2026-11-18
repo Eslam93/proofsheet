@@ -68,7 +68,7 @@ The solution is split into layers:
 - restated years
 - concepts companies have stopped using
 
-The first version of Proofsheet used the first concept on a list and the two latest facts. Microsoft, for example, came out as fiscal 2010 with a 248% operating margin. On 2026-11-06 the two rules were run over 52 large companies and disagreed on at least one figure in 27 of the 35 statements the old rule could build. That count compared the rules with each other, not with the filings, and the data behind it was not kept, so it cannot be checked from this repository.
+The first version of Proofsheet used the first concept on a list and the two latest facts. Microsoft, for example, came out as fiscal 2010 with a 248% operating margin. On 2026-11-06 the two rules were run over 52 large companies and disagreed on at least one figure in 27 of the 35 statements the old rule could build. That count compared the rules with each other, not with the filings, and the data behind it was not kept, so it cannot be checked from this repository. The [measurement](data/measurement) now runs both rules on committed SEC data, and reproduces the Apple and Microsoft failures above; comparing both with values read by hand from the 10-Ks is the part still to do.
 
 The fix is [`SecFactSelector`](Proofsheet.Infrastructure/Clients/SecFactSelector.cs):
 - A fiscal year is a fact from an annual report that spans 350 to 380 days.

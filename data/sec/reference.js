@@ -27,6 +27,9 @@ const LISTS = {
 };
 // Kept in fixtures so tests prove they are ignored.
 const IGNORED = ["PropertyPlantAndEquipmentAdditions", "CapitalExpendituresIncurredButNotYetPaid"];
+// Read only by the rule before the fix (the measurement's baseline), so a capture keeps everything that rule read too.
+// The 2026-11-06 capture predates this list and does not hold them.
+const BASELINE_ONLY = ["LongTermDebtAndFinanceLeaseObligations", "LongTermDebtAndCapitalLeaseObligationsNoncurrent", "LongTermDebtAndFinanceLeaseObligationsNoncurrent"];
 const ANNUAL_FORMS = ["10-K", "10-K/A", "10-KT", "10-KT/A", "20-F", "20-F/A", "40-F", "40-F/A"];
 const DAY = 86400000;
 const TOL = 7 * DAY;
@@ -106,7 +109,7 @@ if (mode === "compute") {
   console.log(JSON.stringify(rows, null, 1));
 } else if (mode === "trim") {
   const [outDir, ...tickers] = rest;
-  const keep = new Set([...Object.values(LISTS).flat(), ...IGNORED]);
+  const keep = new Set([...Object.values(LISTS).flat(), ...IGNORED, ...BASELINE_ONLY]);
   fs.mkdirSync(outDir, { recursive: true });
   for (const ticker of tickers) {
     const root = JSON.parse(fs.readFileSync(path.join(dir, `companyfacts-${ticker}.json`), "utf8"));
