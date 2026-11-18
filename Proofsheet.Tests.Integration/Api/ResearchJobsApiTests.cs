@@ -12,6 +12,7 @@ using Proofsheet.Application.Abstractions;
 using Proofsheet.Application.Models;
 using Proofsheet.Domain.Contracts;
 using Proofsheet.Domain.Enums;
+using Proofsheet.Domain.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -308,6 +309,40 @@ public sealed class ResearchJobsApiTests
 
         Assert.Equal(new DateOnly(2026, 1, 15), (await WaitForCompletedResultAsync(client, dated.JobId)).AsOf);
         Assert.Equal(DateOnly.FromDateTime(DateTime.UtcNow), (await WaitForCompletedResultAsync(client, undated.JobId)).AsOf);
+    }
+
+    [Fact]
+    public async Task Report_Carries_Each_Figure_With_Its_Filing()
+    {
+        var figure = new FinancialFigure(
+            "Revenue",
+            478_834_000_000m,
+            "USD",
+            "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+            new DateTimeOffset(2025, 9, 28, 0, 0, 0, TimeSpan.Zero),
+            new DateTimeOffset(2026, 9, 26, 0, 0, 0, TimeSpan.Zero),
+            "10-K",
+            "0000320193-26-000026",
+            new DateTimeOffset(2026, 11, 3, 0, 0, 0, TimeSpan.Zero),
+            "https://www.sec.gov/Archives/edgar/data/320193/000032019326000026/0000320193-26-000026-index.htm");
+        await using var factory = new ProofsheetWebApplicationFactory(
+            configureTestServices: services =>
+            {
+                services.RemoveAll<IFinancialStatementProvider>();
+                services.AddScoped<IFinancialStatementProvider>(provider => new FiguredFinancialStatementProvider(
+                    provider.GetRequiredService<Proofsheet.Infrastructure.Providers.MockResearchSeedCatalog>(),
+                    figure));
+            });
+        using var client = factory.CreateClient();
+
+        var accepted = await SubmitAsync(client, "NORTHWIND");
+        var result = await WaitForCompletedResultAsync(client, accepted.JobId);
+
+        var reported = Assert.Single(result.Figures);
+        Assert.Equal(figure.Concept, reported.Concept);
+        Assert.Equal(figure.AccessionNumber, reported.AccessionNumber);
+        Assert.Equal(figure.FilingUrl, reported.FilingUrl);
+        Assert.Equal(figure.PeriodEnd, reported.PeriodEnd);
     }
 
     [Theory]

@@ -234,10 +234,14 @@ public sealed class HybridFinancialStatementProvider : IFinancialStatementProvid
             SecFactSelector.TryGetInstantFact(facts, CashConcepts, SecFactSelector.Usd, fiscalYearEnd, annualReportsOnly: false, out cashFact)
             ? cashFact
             : Missing("cash");
-        var debt = TryGetDebt(facts, fiscalYearEnd, annualReportsOnly: true, out var debtFact) ||
-            TryGetDebt(facts, fiscalYearEnd, annualReportsOnly: false, out debtFact)
-            ? debtFact
-            : Missing("debt");
+        var debt = TryGetDebt(facts, fiscalYearEnd, annualReportsOnly: true, out var debtSelection) ||
+            TryGetDebt(facts, fiscalYearEnd, annualReportsOnly: false, out debtSelection)
+            ? debtSelection
+            : null;
+        if (debt is null)
+        {
+            missing.Add("debt");
+        }
 
         if (operatingIncome is null || operatingCashFlow is null || capitalExpenditure is null || cash is null || debt is null)
         {
@@ -294,9 +298,35 @@ public sealed class HybridFinancialStatementProvider : IFinancialStatementProvid
             fiscalYearEnd,
             TimestampType.AsOf,
             qualityScore,
-            stanceScore);
+            stanceScore)
+        {
+            // The numbers the statement was computed from, each with the filing a reader can open to check it.
+            Figures =
+            [
+                Figure("Revenue", revenue),
+                Figure("Revenue, prior year", previousRevenue),
+                Figure("Operating income", operatingIncome),
+                Figure("Operating cash flow", operatingCashFlow),
+                Figure("Capital expenditure", capitalExpenditure),
+                Figure("Cash and cash equivalents", cash),
+                .. debt.Parts.Select(part => Figure(part.Label, part.Fact))
+            ]
+        };
         unavailableReason = null;
         return true;
+
+        FinancialFigure Figure(string label, SecFactPoint fact) =>
+            new(
+                label,
+                fact.Value,
+                SecFactSelector.Usd,
+                $"us-gaap:{fact.Concept}",
+                fact.StartDate,
+                fact.EndDate,
+                fact.Form,
+                fact.AccessionNumber,
+                fact.FiledDate,
+                SecEdgarLinks.FilingIndex(companyFacts.CikPadded, fact.AccessionNumber));
 
         SecFactPoint? Missing(string figure)
         {
@@ -311,21 +341,26 @@ public sealed class HybridFinancialStatementProvider : IFinancialStatementProvid
         SecFactsAsOf facts,
         DateTimeOffset fiscalYearEnd,
         bool annualReportsOnly,
-        [NotNullWhen(true)] out SecFactPoint? debt)
+        [NotNullWhen(true)] out DebtSelection? debt)
     {
-        SecFactSelector.TryGetInstantFact(facts, TotalDebtConcepts, SecFactSelector.Usd, fiscalYearEnd, annualReportsOnly, out var total);
+        DebtSelection? total = SecFactSelector.TryGetInstantFact(facts, TotalDebtConcepts, SecFactSelector.Usd, fiscalYearEnd, annualReportsOnly, out var totalFact)
+            ? new DebtSelection(totalFact.Value, [("Debt", totalFact)])
+            : null;
 
-        SecFactPoint? parts = null;
+        DebtSelection? parts = null;
         if (SecFactSelector.TryGetInstantFact(facts, NonCurrentDebtConcepts, SecFactSelector.Usd, fiscalYearEnd, annualReportsOnly, out var nonCurrent))
         {
             parts = SecFactSelector.TryGetInstantFact(facts, CurrentDebtConcepts, SecFactSelector.Usd, fiscalYearEnd, annualReportsOnly, out var current)
-                ? nonCurrent with { Concept = $"{nonCurrent.Concept}+{current.Concept}", Value = nonCurrent.Value + current.Value }
-                : nonCurrent;
+                ? new DebtSelection(nonCurrent.Value + current.Value, [("Debt, non-current", nonCurrent), ("Debt, current", current)])
+                : new DebtSelection(nonCurrent.Value, [("Debt, non-current", nonCurrent)]);
         }
 
         debt = total is null || (parts is not null && parts.Value > total.Value) ? parts : total;
         return debt is not null;
     }
+
+    // The debt figure and the reported facts that make it up: one total, or the non-current and current parts.
+    private sealed record DebtSelection(decimal Value, IReadOnlyList<(string Label, SecFactPoint Fact)> Parts);
 
     private static string FormatDate(DateTimeOffset date) =>
         date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);

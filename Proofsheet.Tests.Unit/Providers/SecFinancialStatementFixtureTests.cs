@@ -132,6 +132,50 @@ public sealed class SecFinancialStatementFixtureTests
         Assert.Equal(15.06m, dayOf.Value.RevenueGrowthPercent);
     }
 
+    [Fact]
+    public async Task Live_Statement_Carries_Every_Figure_With_Its_Filing()
+    {
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+
+        var statement = (await CreateProvider("AAPL", "0000320193", cache, CapturedOn).GetAsync("AAPL", CancellationToken.None)).Value!;
+
+        var revenue = Assert.Single(statement.Figures, figure => figure.Label == "Revenue");
+        Assert.Equal(478_834_000_000m, revenue.Value);
+        Assert.Equal("us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax", revenue.Concept);
+        Assert.Equal(DateTimeOffset.Parse("2025-09-28T00:00:00Z"), revenue.PeriodStart);
+        Assert.Equal(DateTimeOffset.Parse("2026-09-26T00:00:00Z"), revenue.PeriodEnd);
+        Assert.Equal("10-K", revenue.Form);
+        Assert.Equal("0000320193-26-000026", revenue.AccessionNumber);
+        Assert.Equal("https://www.sec.gov/Archives/edgar/data/320193/000032019326000026/0000320193-26-000026-index.htm", revenue.FilingUrl);
+        Assert.Equal(
+            ["Revenue", "Revenue, prior year", "Operating income", "Operating cash flow", "Capital expenditure", "Cash and cash equivalents"],
+            statement.Figures.Take(6).Select(figure => figure.Label));
+        Assert.All(statement.Figures, figure =>
+        {
+            Assert.StartsWith("https://www.sec.gov/Archives/edgar/data/320193/", figure.FilingUrl);
+            Assert.True(figure.FiledDate <= CapturedOn);
+        });
+
+        // The statement's numbers are computed from exactly these figures.
+        var prior = statement.Figures.Single(figure => figure.Label == "Revenue, prior year").Value;
+        Assert.Equal(statement.RevenueGrowthPercent, Math.Round((revenue.Value - prior) / prior * 100m, 2, MidpointRounding.AwayFromZero));
+        var debt = statement.Figures.Where(figure => figure.Label.StartsWith("Debt", StringComparison.Ordinal)).Sum(figure => figure.Value);
+        Assert.Equal(statement.DebtBillions, Math.Round(debt / 1_000_000_000m, 2, MidpointRounding.AwayFromZero));
+    }
+
+    [Fact]
+    public async Task Debt_Made_Of_Two_Parts_Shows_Both_Parts_With_Their_Filings()
+    {
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+
+        var statement = (await CreateProvider("PG", "0000080424", cache, CapturedOn).GetAsync("PG", CancellationToken.None)).Value!;
+
+        var parts = statement.Figures.Where(figure => figure.Label.StartsWith("Debt", StringComparison.Ordinal)).ToArray();
+        Assert.Equal(["Debt, non-current", "Debt, current"], parts.Select(part => part.Label));
+        Assert.Equal(34.14m, Math.Round(parts.Sum(part => part.Value) / 1_000_000_000m, 2, MidpointRounding.AwayFromZero));
+        Assert.All(parts, part => Assert.NotNull(part.AccessionNumber));
+    }
+
     private static string ReadFixture(string ticker) =>
         File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "Sec", $"companyfacts-{ticker}.json"));
 

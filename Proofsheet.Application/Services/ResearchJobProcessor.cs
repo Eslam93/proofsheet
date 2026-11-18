@@ -603,7 +603,10 @@ public sealed class ResearchJobProcessor : IResearchJobProcessor
                 false,
                 0,
                 0,
-                0));
+                0))
+        {
+            Figures = FinancialFigureResponse.From(evidence.FinancialStatement)
+        };
     }
 
     private void FailCriticalSource(Guid jobId, List<string> warnings, List<ResearchTraceEvent> trace, string message)

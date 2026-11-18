@@ -178,7 +178,10 @@ public sealed class AutonomousResearchOrchestrator : IAutonomousResearchOrchestr
                 session.HandoffOccurred,
                 session.ToolCallCount,
                 session.ReflectionRounds,
-                session.ValidationRetries));
+                session.ValidationRetries))
+        {
+            Figures = FinancialFigureResponse.From(handoffPacket.Evidence.FinancialStatement)
+        };
     }
 
     private void UpdateRecord(Guid jobId, Func<ResearchJobRecord, ResearchJobRecord> update)

@@ -142,6 +142,9 @@
             sources: document.getElementById("report-sources"),
             providerUsage: document.getElementById("report-provider-usage"),
             dataLabel: document.getElementById("report-data-label"),
+            figuresSection: document.getElementById("report-figures-section"),
+            figuresNote: document.getElementById("report-figures-note"),
+            figures: document.getElementById("report-figures"),
             chatTranscript: document.getElementById("chat-transcript"),
             chatEmptyState: document.getElementById("chat-empty-state"),
             chatWelcome: document.getElementById("chat-welcome"),
@@ -318,6 +321,7 @@
         elements.confidenceCard.className = `metric-card metric-card--confidence metric-card--${confidenceBand(result.confidence)}`;
         elements.thesis.textContent = result.thesis;
         renderDataLabel(result, elements.dataLabel);
+        renderFigures(result, elements);
         elements.signalRationale.textContent = result.signalDetails?.rationale || "Signal rationale was not provided.";
         elements.confidenceRationale.textContent = result.confidenceDetails?.rationale || "Confidence rationale was not provided.";
         elements.confidenceBounds.textContent = result.confidenceDetails
@@ -388,6 +392,51 @@
 
         label.textContent = `${text} Not investment advice.`;
         label.className = `data-label data-label--${kind}`;
+    }
+
+    // Every figure links to the EDGAR filing it was reported in, so a reader can check it against the filing itself.
+    function renderFigures(result, elements) {
+        const figures = result.figures || [];
+        elements.figuresSection.hidden = figures.length === 0;
+        if (figures.length === 0) {
+            return;
+        }
+
+        const asOf = result.asOf ? ` on or before ${result.asOf}` : "";
+        elements.figuresNote.textContent = `Each figure is a fact the company filed with the SEC${asOf}, in US dollars as the filing reports it. The link opens that filing on EDGAR.`;
+        const body = elements.figures.querySelector("tbody");
+        body.innerHTML = "";
+        figures.forEach((figure) => {
+            const row = document.createElement("tr");
+            const period = figure.periodStart
+                ? `${isoDate(figure.periodStart)} to ${isoDate(figure.periodEnd)}`
+                : `at ${isoDate(figure.periodEnd)}`;
+            const filingLabel = `${figure.form || "Filing"} filed ${isoDate(figure.filedDate)}`;
+            const filing = isEdgarUrl(figure.filingUrl)
+                ? `<a href="${escapeHtml(figure.filingUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(filingLabel)}</a>`
+                : escapeHtml(filingLabel);
+            row.innerHTML = [
+                `<td>${escapeHtml(figure.label)}</td>`,
+                `<td class="figure-table__value">${escapeHtml(formatUsdMillions(figure.value))}</td>`,
+                `<td>${escapeHtml(period)}</td>`,
+                `<td><code>${escapeHtml(figure.concept)}</code></td>`,
+                `<td>${filing}<small>${escapeHtml(figure.accessionNumber || "")}</small></td>`
+            ].join("");
+            body.appendChild(row);
+        });
+    }
+
+    function isEdgarUrl(value) {
+        return typeof value === "string" && value.startsWith("https://www.sec.gov/Archives/edgar/data/");
+    }
+
+    function formatUsdMillions(value) {
+        const millions = Number(value) / 1e6;
+        return `$${millions.toLocaleString("en-US", { maximumFractionDigits: 1 })}M`;
+    }
+
+    function isoDate(value) {
+        return String(value || "").slice(0, 10);
     }
 
     function renderWarnings(warnings, warningsList) {

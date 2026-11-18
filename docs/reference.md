@@ -734,6 +734,10 @@ The result explicitly captures:
   - synthesis mode, model, retries, fallback state
 - `orchestrationDetails`
   - standard vs autonomous orchestration metadata
+- `asOf`
+  - the date the report was built as of: only SEC facts filed on or before it were read
+- `figures`
+  - every reported figure behind the financial statement: label, value in US dollars, XBRL concept, period, form, accession number, filing date and the EDGAR filing index URL. Empty for sample data, which has no filings.
 
 ### Trace semantics
 

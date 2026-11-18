@@ -89,3 +89,12 @@ internal sealed class EmptyFinancialStatementProvider : IFinancialStatementProvi
     public Task<ProviderResult<FinancialStatement>> GetAsync(string identifier, CancellationToken cancellationToken) =>
         Task.FromResult(ProviderResult<FinancialStatement>.Empty(origin: ProviderOrigin.Mock, providerName: "SeededMock"));
 }
+
+/// <summary>Returns a sample company's statement with the given figures attached, as a live statement would carry them.</summary>
+internal sealed class FiguredFinancialStatementProvider(MockResearchSeedCatalog catalog, params FinancialFigure[] figures) : IFinancialStatementProvider
+{
+    public Task<ProviderResult<FinancialStatement>> GetAsync(string identifier, CancellationToken cancellationToken) =>
+        Task.FromResult(catalog.TryGet(identifier, out var seed)
+            ? ProviderResult<FinancialStatement>.Success(seed.FinancialStatement with { Figures = figures }, ProviderOrigin.Live, "SEC EDGAR")
+            : ProviderResult<FinancialStatement>.Empty(origin: ProviderOrigin.Live, providerName: "SEC EDGAR"));
+}
