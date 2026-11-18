@@ -198,12 +198,22 @@ public sealed class UiAndReportChatIntegrationTests
 
         await using var connection = BuildConnection(factory, client.BaseAddress!);
         var receivedEvents = new ConcurrentQueue<ReportChatStreamEventResponse>();
-        connection.On<ReportChatStreamEventResponse>("ReceiveStreamEvent", evt => receivedEvents.Enqueue(evt));
+        var errorEventSource = new TaskCompletionSource<ReportChatStreamEventResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
+        connection.On<ReportChatStreamEventResponse>("ReceiveStreamEvent", evt =>
+        {
+            receivedEvents.Enqueue(evt);
+            if (evt.Kind == "error")
+            {
+                errorEventSource.TrySetResult(evt);
+            }
+        });
         await connection.StartAsync();
         var thread = await connection.InvokeAsync<ReportChatThreadCreatedResponse>("CreateThread", accepted.JobId);
 
         var exception = await Assert.ThrowsAsync<HubException>(() =>
             connection.InvokeAsync("SendMessage", thread.ThreadId, "Why is the report bullish?"));
+        // The client can finish the failed call before it has handed the earlier error event to its handler.
+        var errorEvent = await errorEventSource.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         // The browser sees fixed text and a reference, never the provider's error body.
         Assert.DoesNotContain(StubReportChatService.UpstreamSecret, exception.Message, StringComparison.Ordinal);
@@ -213,8 +223,8 @@ public sealed class UiAndReportChatIntegrationTests
         Assert.EndsWith(expectedText, exception.Message, StringComparison.Ordinal);
 
         // The live error event and the replay history carry the same text.
-        var errorEvent = Assert.Single(receivedEvents, evt => evt.Kind == "error");
         Assert.Equal(expectedText, errorEvent.Error);
+        Assert.Single(receivedEvents, evt => evt.Kind == "error");
         var replay = await connection.InvokeAsync<ReportChatStreamResumeResponse>("ResumeStream", thread.ThreadId, 0L);
         Assert.Equal(expectedText, Assert.Single(replay.Events, evt => evt.Kind == "error").Error);
         Assert.DoesNotContain(replay.Events, evt => evt.Error.Contains(StubReportChatService.UpstreamSecret, StringComparison.Ordinal));
