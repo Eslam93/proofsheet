@@ -27,4 +27,10 @@ public sealed class ResearchExecutionOptions
     public int TickerSearchDefaultLimit { get; init; } = 10;
 
     public int TickerSearchMaxLimit { get; init; } = 20;
+
+    /// <summary>How long a finished job stays readable, in minutes.</summary>
+    public int JobRetentionMinutes { get; init; } = 1440;
+
+    /// <summary>The most jobs kept at once. When the store is full, the oldest finished jobs are dropped first.</summary>
+    public int MaxStoredJobs { get; init; } = 500;
 }

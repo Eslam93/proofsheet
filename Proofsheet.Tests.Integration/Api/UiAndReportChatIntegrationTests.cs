@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using Proofsheet.Api.Models;
 using Proofsheet.Application.Abstractions;
 using Proofsheet.Application.Models;
+using Proofsheet.Application.Services;
 using Proofsheet.Domain.Contracts;
 using Proofsheet.Domain.Enums;
 using Microsoft.AspNetCore.Http.Connections;
@@ -194,6 +195,60 @@ public sealed class UiAndReportChatIntegrationTests
             entry.Level == LogLevel.Error &&
             entry.Message.Contains(match.Groups["reference"].Value, StringComparison.Ordinal) &&
             entry.Exception?.Message.Contains(StubReportChatService.UpstreamSecret, StringComparison.Ordinal) == true);
+    }
+
+    [Fact]
+    public async Task Chat_Requests_Over_The_Hourly_Limit_Are_Refused()
+    {
+        var stub = new StubReportChatService(StubChatMode.Complete);
+        await using var factory = new ProofsheetWebApplicationFactory(
+            RateLimitingTests.Limits(chatRequestsPerHour: 2),
+            services =>
+            {
+                services.RemoveAll<IReportChatService>();
+                services.AddSingleton<IReportChatService>(stub);
+                services.RemoveAll<IReportChatAvailabilityService>();
+                services.AddSingleton<IReportChatAvailabilityService>(new AlwaysEnabledReportChatAvailabilityService());
+            });
+        using var client = factory.CreateClient();
+        var accepted = await SubmitAsync(client, "AAPL");
+        await WaitForCompletedResultAsync(client, accepted.JobId);
+        await using var connection = BuildConnection(factory, client.BaseAddress!);
+        await connection.StartAsync();
+
+        // Opening the thread is the first request and the first message the second; the third is refused.
+        var thread = await connection.InvokeAsync<ReportChatThreadCreatedResponse>("CreateThread", accepted.JobId);
+        await connection.InvokeAsync("SendMessage", thread.ThreadId, "Why is the report bullish?");
+        var exception = await Assert.ThrowsAsync<HubException>(() =>
+            connection.InvokeAsync("SendMessage", thread.ThreadId, "And the risks?"));
+
+        Assert.Contains("Too many chat requests", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Chat_Message_Longer_Than_The_Cap_Is_Refused()
+    {
+        var stub = new StubReportChatService(StubChatMode.Complete);
+        await using var factory = new ProofsheetWebApplicationFactory(
+            configureTestServices: services =>
+            {
+                services.RemoveAll<IReportChatService>();
+                services.AddSingleton<IReportChatService>(stub);
+                services.RemoveAll<IReportChatAvailabilityService>();
+                services.AddSingleton<IReportChatAvailabilityService>(new AlwaysEnabledReportChatAvailabilityService());
+            });
+        using var client = factory.CreateClient();
+        var accepted = await SubmitAsync(client, "AAPL");
+        await WaitForCompletedResultAsync(client, accepted.JobId);
+        await using var connection = BuildConnection(factory, client.BaseAddress!);
+        await connection.StartAsync();
+        var thread = await connection.InvokeAsync<ReportChatThreadCreatedResponse>("CreateThread", accepted.JobId);
+
+        var exception = await Assert.ThrowsAsync<HubException>(() =>
+            connection.InvokeAsync("SendMessage", thread.ThreadId, new string('a', ReportChatOrchestrator.MaxMessageLength + 1)));
+        await connection.InvokeAsync("SendMessage", thread.ThreadId, new string('a', ReportChatOrchestrator.MaxMessageLength));
+
+        Assert.Contains($"limited to {ReportChatOrchestrator.MaxMessageLength} characters", exception.Message, StringComparison.Ordinal);
     }
 
     private static HubConnection BuildConnection(ProofsheetWebApplicationFactory factory, Uri baseAddress)

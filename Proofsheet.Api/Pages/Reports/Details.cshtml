@@ -111,7 +111,7 @@
                 <div id="chat-transcript" class="chat-transcript" aria-live="polite"></div>
 
                 <form id="chat-form" class="chat-form">
-                    <textarea id="chat-message" class="chat-input" placeholder="Ask me anything." rows="3" disabled></textarea>
+                    <textarea id="chat-message" class="chat-input" placeholder="Ask me anything." rows="3" maxlength="@Proofsheet.Application.Services.ReportChatOrchestrator.MaxMessageLength" disabled></textarea>
                     <div class="chat-actions">
                         <button id="chat-send" class="primary-button primary-button--icon" type="submit">Send <span aria-hidden="true">↗</span></button>
                     </div>

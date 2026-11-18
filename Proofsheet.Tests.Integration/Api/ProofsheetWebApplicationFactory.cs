@@ -31,6 +31,8 @@ internal sealed class ProofsheetWebApplicationFactory : WebApplicationFactory<Pr
         _configurationOverrides["SecEdgar:UserAgent"] = "";
         _configurationOverrides["TwelveData:ApiKey"] = "";
         _configurationOverrides["AlphaVantage:ApiKey"] = "";
+        // Tests poll quickly from one address; the limits have their own tests, which turn them back on.
+        _configurationOverrides["RateLimiting:Enabled"] = "false";
 
         if (configurationOverrides is not null)
         {

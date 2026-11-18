@@ -6,6 +6,9 @@ namespace Proofsheet.Application.Services;
 
 public sealed class ReportChatOrchestrator : IReportChatOrchestrator
 {
+    /// <summary>The longest question the chat accepts, in characters. The whole question goes to the model.</summary>
+    public const int MaxMessageLength = 1000;
+
     private const int MaxStreamHistoryEvents = 400;
 
     private readonly IReportChatAvailabilityService _reportChatAvailabilityService;
@@ -63,6 +66,11 @@ public sealed class ReportChatOrchestrator : IReportChatOrchestrator
         if (string.IsNullOrWhiteSpace(message))
         {
             throw new ReportChatRequestException("Message is required.");
+        }
+
+        if (message.Length > MaxMessageLength)
+        {
+            throw new ReportChatRequestException($"Messages are limited to {MaxMessageLength} characters.");
         }
 
         EnsureChatConfigured();

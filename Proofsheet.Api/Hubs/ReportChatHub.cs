@@ -1,3 +1,4 @@
+using Proofsheet.Api.RateLimiting;
 using Proofsheet.Application.Abstractions;
 using Proofsheet.Application.Models;
 using Microsoft.AspNetCore.SignalR;
@@ -7,16 +8,22 @@ namespace Proofsheet.Api.Hubs;
 public sealed class ReportChatHub : Hub
 {
     private readonly IReportChatOrchestrator _reportChatOrchestrator;
+    private readonly ReportChatRateLimiter _rateLimiter;
     private readonly ILogger<ReportChatHub> _logger;
 
-    public ReportChatHub(IReportChatOrchestrator reportChatOrchestrator, ILogger<ReportChatHub> logger)
+    public ReportChatHub(IReportChatOrchestrator reportChatOrchestrator, ReportChatRateLimiter rateLimiter, ILogger<ReportChatHub> logger)
     {
         _reportChatOrchestrator = reportChatOrchestrator;
+        _rateLimiter = rateLimiter;
         _logger = logger;
     }
 
     public Task<ReportChatThreadCreatedResponse> CreateThread(Guid jobId) =>
-        InvokeAsync(nameof(CreateThread), () => _reportChatOrchestrator.CreateThreadAsync(jobId, Context.ConnectionAborted));
+        InvokeAsync(nameof(CreateThread), () =>
+        {
+            _rateLimiter.Acquire(Context.GetHttpContext());
+            return _reportChatOrchestrator.CreateThreadAsync(jobId, Context.ConnectionAborted);
+        });
 
     public async Task SendMessage(string threadId, string message)
     {
@@ -24,6 +31,7 @@ public sealed class ReportChatHub : Hub
         {
             await InvokeAsync(nameof(SendMessage), async () =>
             {
+                _rateLimiter.Acquire(Context.GetHttpContext());
                 var callbacks = new ReportChatStreamingCallbacks
                 {
                     OnStreamEvent = streamEvent => Clients.Caller.SendAsync("ReceiveStreamEvent", streamEvent, Context.ConnectionAborted),
