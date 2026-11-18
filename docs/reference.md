@@ -93,8 +93,8 @@ Result:
 - `Auto` resolves to `Mock`
 - the built-in UI works
 - the API works
-- reports generate successfully
-- provider provenance shows seeded mock data
+- reports generate successfully for the four fictional sample companies
+- every report is labelled as fictional sample data
 - report chat stays disabled
 - autonomous mode should not be used
 
@@ -457,14 +457,14 @@ Execution mode controls the provider and fallback strategy.
 
 ### `Mock`
 
-- use seeded data only
+- use the fictional sample companies only; any other identifier gets no report
 - deterministic and no-key friendly
 
 ### `Hybrid`
 
 - prefer live providers
-- allow seeded fallback
-- fallback is explicit in provenance and trace
+- when a provider fails, a real company's report leaves that part out, and the job fails if the missing part is the company profile or the financial statements
+- only the fictional sample companies fall back to sample data, and that fallback is explicit in provenance and trace
 
 ### `LiveRequired`
 
@@ -598,26 +598,20 @@ Even in autonomous mode, backend validation remains final authority:
 - Alpha Vantage
   - news coverage
 
-### Mock sources
+### Sample data
 
-The seeded mock catalog covers:
+The sample catalog has four fictional companies. Their names, figures, headlines and filing excerpts are invented, and their identifiers are longer than any US ticker, so none can be mistaken for a listed company:
 
-- `AAPL`
-- `MSFT`
-- `NVDA`
-- `TSLA`
-- `JPM`
-- `AMZN`
-- `GOOGL`
-- `AMD`
-- `XOM`
-- `UNH`
+- `NORTHWIND`, Northwind Instruments (fictional)
+- `FABRIKAM`, Fabrikam Software (fictional)
+- `TAILSPIN`, Tailspin Semiconductors (fictional)
+- `CONTOSO`, Contoso Motors (fictional)
 
-In `Mock` mode, the app is fully deterministic and does not need external APIs.
+There is no sample data for real companies. In `Mock` mode, the app is fully deterministic and does not need external APIs.
 
-### TSLA degraded scenario
+### CONTOSO degraded scenario
 
-`TSLA` is the locked degraded seed path and behaves as follows per job execution:
+`CONTOSO` is the degraded sample path and behaves as follows per job execution:
 
 - market snapshot fails once with `TransientFailure`
 - retry succeeds
@@ -649,22 +643,22 @@ The current implementation extends that schema with rich explainability data.
 
 ```json
 {
-  "company": "Apple Inc.",
-  "identifier": "AAPL",
-  "thesis": "Apple combines ecosystem stickiness and services monetization with high margins and recurring services revenue support resilient cash generation, while hardware upgrade concentration remains the main offset.",
+  "company": "Northwind Instruments (fictional)",
+  "identifier": "NORTHWIND",
+  "thesis": "Northwind Instruments (fictional) combines high margins and recurring service revenue support resilient cash generation with recent coverage remains anchored by service revenue keeps growing faster than hardware, while Valuation remains sensitive to the next product cycle remains the main offset.",
   "signal": "Bullish",
-  "confidence": 91,
-  "generatedAtUtc": "2026-03-18T10:00:12Z",
+  "confidence": 92,
+  "generatedAtUtc": "2026-11-18T18:22:55Z",
   "insights": [
-    "Apple Inc. is converting revenue into strong cash generation and operating leverage.",
-    "Recent coverage remains constructive, led by themes such as services growth continues to outpace hardware.",
-    "Primary risk remains hardware upgrade concentration, but the current evidence still favors upside."
+    "Northwind Instruments (fictional) is converting revenue into strong cash generation and operating leverage.",
+    "Recent coverage remains constructive, led by themes such as service revenue keeps growing faster than hardware.",
+    "Primary risk remains Valuation remains sensitive to the next product cycle, but the current evidence still favors upside."
   ],
   "sources": [
-    "financials:AAPL",
-    "profile:AAPL",
-    "filing:AAPL:001",
-    "news:AAPL:001"
+    "financials:NORTHWIND",
+    "profile:NORTHWIND",
+    "filing:NORTHWIND:001",
+    "news:NORTHWIND:001"
   ],
   "warnings": [],
   "trace": [],
@@ -674,47 +668,49 @@ The current implementation extends that schema with rich explainability data.
   "thesisDetails": {
     "summary": "Thesis rests on strong financial execution, company positioning, and corroborating disclosures.",
     "sourceIds": [
-      "financials:AAPL",
-      "profile:AAPL",
-      "filing:AAPL:001"
+      "financials:NORTHWIND",
+      "profile:NORTHWIND",
+      "filing:NORTHWIND:001"
     ]
   },
   "signalDetails": {
     "signal": "Bullish",
-    "rationale": "The evidence package supports a positive directional conclusion without violating the conservative override rules.",
+    "rationale": "Positive directional evidence outweighed the risks across the strongest sources (financials:NORTHWIND, profile:NORTHWIND, filing:NORTHWIND:001, news:NORTHWIND:001).",
     "sourceIds": [
-      "financials:AAPL",
-      "filing:AAPL:001"
+      "financials:NORTHWIND",
+      "filing:NORTHWIND:001"
     ],
     "overrideApplied": false
   },
   "confidenceDetails": {
-    "rationale": "Confidence is high because the evidence is complete, coherent, and well supported by cited sources.",
-    "boundedFrom": 82,
+    "rationale": "Confidence reflects completeness 100, evidence quality 84, agreement 86, and support coverage 100.",
+    "boundedFrom": 92,
     "boundedTo": 92,
     "sourceIds": [
-      "financials:AAPL",
-      "profile:AAPL",
-      "filing:AAPL:001"
+      "financials:NORTHWIND",
+      "profile:NORTHWIND",
+      "filing:NORTHWIND:001"
     ]
   },
   "synthesisDetails": {
-    "mode": "LiveRequired",
-    "model": "gpt-5.4-nano",
+    "mode": "Mock",
+    "model": "deterministic",
     "validationRetries": 0,
     "fallbackOccurred": false
   },
   "orchestrationDetails": {
-    "researchMode": "Autonomous",
-    "coordinatorModel": "gpt-5.4-nano",
-    "specialistModel": "gpt-5.4-nano",
-    "handoffOccurred": true,
-    "toolCallCount": 8,
-    "reflectionRounds": 2,
+    "researchMode": "Standard",
+    "coordinatorModel": null,
+    "specialistModel": null,
+    "handoffOccurred": false,
+    "toolCallCount": 0,
+    "reflectionRounds": 0,
     "validationRetries": 0
   }
 }
 ```
+
+The example is a `Mock` run for a fictional sample company: a deterministic template wrote it, and every figure behind it is invented. A model-written report has the same shape, with the model's name in `synthesisDetails`.
 
 ### Provenance and traceability
 
@@ -764,7 +760,7 @@ The report chat is a separate Responses-based layer on top of a completed report
 - each chat thread is bound to one completed report snapshot
 - chat does not trigger fresh research
 - chat does not browse the web
-- chat answers only from the completed report
+- the chat model is given only the completed report and tools that read it; nothing checks its answers against the report
 
 ### Transport
 
@@ -793,6 +789,12 @@ The chat model can use:
 - expires after `60` minutes of inactivity
 - stores transcript and `previousResponseId`
 - survives within the running app only
+- a message is at most 1,000 characters
+- each client address may open threads and send messages 30 times an hour in total
+
+### Errors
+
+The browser never sees an upstream error. When the model provider or anything else fails, the chat sends a fixed sentence with a reference id, and the server logs the original error under the same id.
 
 ## Configuration
 
@@ -819,6 +821,20 @@ Configuration comes from:
 - `ResearchJobs__TickerSearchMinimumQueryLength`
 - `ResearchJobs__TickerSearchDefaultLimit`
 - `ResearchJobs__TickerSearchMaxLimit`
+- `ResearchJobs__JobRetentionMinutes` (default `1440`): how long a finished job stays readable
+- `ResearchJobs__MaxStoredJobs` (default `500`): the oldest finished jobs are dropped first when the store is full
+
+#### Rate limits
+
+Every limit counts requests from one client address in a fixed window.
+
+- `RateLimiting__Enabled` (default `true`)
+- `RateLimiting__RequestsPerMinute` (default `120`): any request except static files
+- `RateLimiting__JobSubmissionsPerHour` (default `20`)
+- `RateLimiting__ChatRequestsPerHour` (default `30`): chat threads opened plus messages sent
+- `RateLimiting__ClientAddressHeader` (default empty): a header such as `CF-Connecting-IP` that a reverse proxy sets to the client's address. Set it only when the app cannot be reached except through that proxy, because anyone who reaches the app directly can put any address in the header. When it is empty, the connection's remote address is used.
+
+A refused request gets `429 Too Many Requests` with `Retry-After` and problem details; a refused chat request gets a fixed chat error.
 
 #### OpenAI Responses
 
@@ -1037,13 +1053,7 @@ Run the full suite:
 dotnet test Proofsheet.slnx
 ```
 
-Current validation status from the latest full pass on .NET 10:
-
-- `dotnet build Proofsheet.slnx` passed
-- `dotnet test Proofsheet.slnx` passed
-- 77 tests total
-  - 61 unit
-  - 16 integration
+The suite needs no keys. The integration tests run the host as `Development`, which loads user secrets, so the test host blanks every key and contact before a test runs.
 
 The test suite covers:
 
@@ -1062,12 +1072,15 @@ The test suite covers:
 - the Swagger document
 - SignalR report chat flows
 - standard and autonomous end-to-end flows
+- the rate limits, the chat message cap and job expiry
+- the chat's fixed error text in place of upstream errors
+- that a real company gets no sample data
 
 ## Trade-offs
 
 - In-memory storage keeps the system simple and easy to review, but jobs and sessions are lost on restart.
-- Mock mode gives a reliable demo path, but it is not live market truth.
-- Hybrid mode is pragmatic, but it mixes live and seeded data by design.
+- Mock mode runs without keys, but only for fictional companies.
+- Hybrid mode degrades instead of failing when a provider is down, but it never puts sample data in a real company's report.
 - LiveRequired mode is closer to the target production behavior, but it is more exposed to rate limits and upstream failures.
 - Deterministic scoring is retained as a guardrail layer even when the final report is model-authored.
 - The autonomous path is more agentic, but it is also more complex and more dependent on bounded prompt and tool discipline.
@@ -1083,8 +1096,9 @@ The test suite covers:
 - There is no user cancel API for research jobs.
 - There is no distributed worker architecture.
 - Live analysis depends on external APIs and may degrade or fail when providers are slow, unavailable, or rate-limited.
-- Live financial statements need the standard US GAAP concepts for every figure in the same fiscal year. Companies that don't report `OperatingIncomeLoss` (banks, oil majors, and many pharmaceutical companies) or that tag capital expenditure or debt with their own concepts fall back with a reason naming the missing figure. Debt can still be understated when a company splits its current debt across several concepts.
-- Mock mode uses a finite seeded catalog.
+- Live financial statements need the standard US GAAP concepts for every figure in the same fiscal year. Companies that don't report `OperatingIncomeLoss` (banks, oil majors, and many pharmaceutical companies) or that tag capital expenditure or debt with their own concepts get no statement, with a reason naming the missing figure, and their job fails. Debt can still be understated when a company splits its current debt across several concepts.
+- Mock mode has four fictional companies and nothing else.
+- Rate limits count per client address; behind a proxy that hides client addresses, every visitor shares one count.
 - Recurring monitoring is intentionally deferred.
 - Autonomous mode is bounded to approved internal tools and does not browse the open web.
 
@@ -1094,8 +1108,6 @@ Additional repository docs:
 
 - [quickstart-no-keys.md](./quickstart-no-keys.md)
   - quickest clone-and-run path without any secrets
-- [case-study-coverage.md](./case-study-coverage.md)
-  - requirement-by-requirement coverage against the original case study
 
 ## Sequence Diagram
 

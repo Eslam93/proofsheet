@@ -19,4 +19,4 @@ Each file is trimmed to the US GAAP concepts the financial statement provider re
 | JPM, XOM | No `OperatingIncomeLoss` (a bank and an oil major), so no statement can be built. |
 | TSM | Foreign filer reporting under IFRS, which is unsupported. |
 
-The expected values in `SecFinancialStatementFixtureTests` were computed from these files by `reference.js`, a separate implementation of the same rules, not by the provider. The latest and prior-year revenue were also checked against each company's published results. See the top of `reference.js` to refresh a fixture or add one.
+The expected values in `SecFinancialStatementFixtureTests` were computed from these files by `reference.js`, a separate implementation of the same rules, not by the provider. Two implementations of the same rules agreeing shows the C# does what the rules say, not that the rules pick the right figures. See the top of `reference.js` to refresh a fixture or add one.
