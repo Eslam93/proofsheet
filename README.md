@@ -152,6 +152,7 @@ The direction is verifiability: every claim in a report should be checkable agai
 
 Proofsheet started as an implementation of the A.I.R.A case study, a take-home brief for an autonomous investment-research backend.
 The [reference](docs/reference.md) keeps the full original documentation: architecture, job lifecycle, modes, the result contract and configuration.
+The [decision records](docs/decisions) explain six choices that shape the code, each written afterwards and dated.
 
 ## License
 
