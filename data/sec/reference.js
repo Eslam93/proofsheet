@@ -1,12 +1,16 @@
-// Independent reference for the SEC fixtures in this folder, written separately from the C# provider so the two can
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
+// Independent reference for the recorded SEC data in this folder, written separately from the C# provider so the two can
 // check each other. It implements the same rules as Proofsheet.Infrastructure/Clients/SecFactSelector.cs and
 // Proofsheet.Infrastructure/Providers/HybridFinancialStatementProvider.cs.
 //
-// Refresh or add a fixture:
+// Refresh or add a recording (run from data/sec):
 //   1. Download https://data.sec.gov/api/xbrl/companyfacts/CIK##########.json for each company into a folder, as
 //      companyfacts-<TICKER>.json. SEC requires a User-Agent with contact details.
-//   2. node reference.js trim <download-folder> . <TICKER> [<TICKER> ...]
-//   3. node reference.js compute . <capture date, yyyy-MM-dd>
+//   2. node reference.js trim <download-folder> <capture date, yyyy-MM-dd> <TICKER> [<TICKER> ...]
+//   3. node reference.js compute <capture date folder> <capture date, yyyy-MM-dd>
 //      and copy the printed values into SecFinancialStatementFixtureTests.
 const fs = require("fs");
 const path = require("path");
@@ -23,6 +27,9 @@ const LISTS = {
 };
 // Kept in fixtures so tests prove they are ignored.
 const IGNORED = ["PropertyPlantAndEquipmentAdditions", "CapitalExpendituresIncurredButNotYetPaid"];
+// Read only by the rule before the fix (the measurement's baseline), so a capture keeps everything that rule read too.
+// The 2026-11-06 capture predates this list and does not hold them.
+const BASELINE_ONLY = ["LongTermDebtAndFinanceLeaseObligations", "LongTermDebtAndCapitalLeaseObligationsNoncurrent", "LongTermDebtAndFinanceLeaseObligationsNoncurrent"];
 const ANNUAL_FORMS = ["10-K", "10-K/A", "10-KT", "10-KT/A", "20-F", "20-F/A", "40-F", "40-F/A"];
 const DAY = 86400000;
 const TOL = 7 * DAY;
@@ -102,7 +109,7 @@ if (mode === "compute") {
   console.log(JSON.stringify(rows, null, 1));
 } else if (mode === "trim") {
   const [outDir, ...tickers] = rest;
-  const keep = new Set([...Object.values(LISTS).flat(), ...IGNORED]);
+  const keep = new Set([...Object.values(LISTS).flat(), ...IGNORED, ...BASELINE_ONLY]);
   fs.mkdirSync(outDir, { recursive: true });
   for (const ticker of tickers) {
     const root = JSON.parse(fs.readFileSync(path.join(dir, `companyfacts-${ticker}.json`), "utf8"));

@@ -1,0 +1,21 @@
+{
+  "name": "recorded set, 2026-11-06 (interim)",
+  "selectionRule": "Interim: the 14 companies recorded on 2026-11-06 for the unit tests, each chosen for a known edge case (data/sec/README.md). This is not the measurement list, which waits on the owner's choice, and no 10-K has been read for it yet.",
+  "capturedOn": "2026-11-06",
+  "companies": [
+    { "ticker": "AAPL", "cik": "0000320193", "set": "edge case" },
+    { "ticker": "AMD", "cik": "0000002488", "set": "edge case" },
+    { "ticker": "AMZN", "cik": "0001018724", "set": "edge case" },
+    { "ticker": "BA", "cik": "0000012927", "set": "edge case" },
+    { "ticker": "COST", "cik": "0000909832", "set": "edge case" },
+    { "ticker": "GOOGL", "cik": "0001652044", "set": "edge case" },
+    { "ticker": "JPM", "cik": "0000019617", "set": "edge case" },
+    { "ticker": "MSFT", "cik": "0000789019", "set": "edge case" },
+    { "ticker": "NVDA", "cik": "0001045810", "set": "edge case" },
+    { "ticker": "PG", "cik": "0000080424", "set": "edge case" },
+    { "ticker": "TSLA", "cik": "0001318605", "set": "edge case" },
+    { "ticker": "TSM", "cik": "0001046179", "set": "edge case" },
+    { "ticker": "UNH", "cik": "0000731766", "set": "edge case" },
+    { "ticker": "XOM", "cik": "0000034088", "set": "edge case" }
+  ]
+}

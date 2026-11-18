@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 using Proofsheet.Infrastructure.Chat;
 using Proofsheet.Infrastructure.Options;
 using Microsoft.Extensions.FileProviders;

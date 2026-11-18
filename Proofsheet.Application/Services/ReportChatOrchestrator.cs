@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 using Proofsheet.Application.Abstractions;
 using Proofsheet.Application.Models;
 using Proofsheet.Domain.Enums;
@@ -6,6 +10,9 @@ namespace Proofsheet.Application.Services;
 
 public sealed class ReportChatOrchestrator : IReportChatOrchestrator
 {
+    /// <summary>The longest question the chat accepts, in characters. The whole question goes to the model.</summary>
+    public const int MaxMessageLength = 1000;
+
     private const int MaxStreamHistoryEvents = 400;
 
     private readonly IReportChatAvailabilityService _reportChatAvailabilityService;
@@ -37,12 +44,12 @@ public sealed class ReportChatOrchestrator : IReportChatOrchestrator
         var record = _researchJobQueryService.Get(jobId);
         if (record is null)
         {
-            throw new InvalidOperationException("The specified research job does not exist.");
+            throw new ReportChatRequestException("The specified research job does not exist.");
         }
 
         if (record.Status != JobStatus.Completed || record.Result is null)
         {
-            throw new InvalidOperationException("Report chat is available only for completed research jobs.");
+            throw new ReportChatRequestException("Report chat is available only for completed research jobs.");
         }
 
         var thread = _threadStore.Create(jobId, record.Result);
@@ -57,18 +64,23 @@ public sealed class ReportChatOrchestrator : IReportChatOrchestrator
     {
         if (string.IsNullOrWhiteSpace(threadId))
         {
-            throw new InvalidOperationException("Thread id is required.");
+            throw new ReportChatRequestException("Thread id is required.");
         }
 
         if (string.IsNullOrWhiteSpace(message))
         {
-            throw new InvalidOperationException("Message is required.");
+            throw new ReportChatRequestException("Message is required.");
+        }
+
+        if (message.Length > MaxMessageLength)
+        {
+            throw new ReportChatRequestException($"Messages are limited to {MaxMessageLength} characters.");
         }
 
         EnsureChatConfigured();
 
         var thread = _threadStore.Get(threadId)
-            ?? throw new InvalidOperationException("Report chat thread was not found or has expired.");
+            ?? throw new ReportChatRequestException("Report chat thread was not found or has expired.");
 
         await thread.SessionLock.WaitAsync(cancellationToken);
         try
@@ -132,14 +144,17 @@ public sealed class ReportChatOrchestrator : IReportChatOrchestrator
             }
             catch (Exception ex)
             {
+                // The provider's error body can quote the request or a masked key. The browser, and the replay
+                // history it can fetch later, get fixed text and a reference; the caller logs the original under it.
+                var failure = new ReportChatFailedException(ReportChatFailedException.NewReference(), ex);
                 var errorEvent = AppendStreamEvent(
                     thread,
                     "error",
                     "conversation.error",
-                    error: ex.Message,
+                    error: failure.Message,
                     markStreamCompleted: true);
                 await DispatchStreamEventAsync(streamingCallbacks, errorEvent);
-                throw;
+                throw failure;
             }
         }
         finally
@@ -155,11 +170,11 @@ public sealed class ReportChatOrchestrator : IReportChatOrchestrator
 
         if (string.IsNullOrWhiteSpace(threadId))
         {
-            throw new InvalidOperationException("Thread id is required.");
+            throw new ReportChatRequestException("Thread id is required.");
         }
 
         var thread = _threadStore.Get(threadId)
-            ?? throw new InvalidOperationException("Report chat thread was not found or has expired.");
+            ?? throw new ReportChatRequestException("Report chat thread was not found or has expired.");
 
         if (lastSequence < 0)
         {
@@ -188,18 +203,18 @@ public sealed class ReportChatOrchestrator : IReportChatOrchestrator
 
         if (string.IsNullOrWhiteSpace(threadId))
         {
-            throw new InvalidOperationException("Thread id is required.");
+            throw new ReportChatRequestException("Thread id is required.");
         }
 
         var thread = _threadStore.Get(threadId)
-            ?? throw new InvalidOperationException("Report chat thread was not found or has expired.");
+            ?? throw new ReportChatRequestException("Report chat thread was not found or has expired.");
 
         CancellationTokenSource? activeCancellation;
         lock (thread.StreamSync)
         {
             if (!thread.StreamInProgress || thread.ActiveStreamCancellation is null)
             {
-                throw new InvalidOperationException("No active report chat stream is running.");
+                throw new ReportChatRequestException("No active report chat stream is running.");
             }
 
             activeCancellation = thread.ActiveStreamCancellation;
@@ -361,7 +376,7 @@ public sealed class ReportChatOrchestrator : IReportChatOrchestrator
     {
         if (!_reportChatAvailabilityService.IsConfigured)
         {
-            throw new InvalidOperationException(_reportChatAvailabilityService.UnavailableReason);
+            throw new ReportChatRequestException(_reportChatAvailabilityService.UnavailableReason);
         }
     }
 }

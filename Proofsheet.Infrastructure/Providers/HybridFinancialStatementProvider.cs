@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.Json;
@@ -111,6 +115,14 @@ public sealed class HybridFinancialStatementProvider : IFinancialStatementProvid
     public async Task<ProviderResult<FinancialStatement>> GetAsync(string identifier, CancellationToken cancellationToken)
     {
         var mode = _jobExecutionContextAccessor.Current?.ExecutionMode ?? ResearchExecutionMode.Mock;
+        // Recorded data takes the live path, with no sample fallback, and is labelled with the recording's date.
+        return mode == ResearchExecutionMode.Recorded
+            ? RecordedResults.AsRecorded(await GetAsync(identifier, ResearchExecutionMode.LiveRequired, cancellationToken), _secEdgarClient.RecordedOn ?? default)
+            : await GetAsync(identifier, mode, cancellationToken);
+    }
+
+    private async Task<ProviderResult<FinancialStatement>> GetAsync(string identifier, ResearchExecutionMode mode, CancellationToken cancellationToken)
+    {
         var fallback = await _mockProvider.GetAsync(identifier, cancellationToken);
         if (mode == ResearchExecutionMode.Mock)
         {
@@ -121,14 +133,14 @@ public sealed class HybridFinancialStatementProvider : IFinancialStatementProvid
         {
             return mode == ResearchExecutionMode.LiveRequired
                 ? ProviderResult<FinancialStatement>.TransientFailure("SEC EDGAR financial statement provider is disabled.", false, ProviderOrigin.Live, "SEC EDGAR")
-                : fallback;
+                : HybridFallback.WhenDisabled(fallback, "SEC EDGAR financial statement provider is disabled.", "SEC EDGAR");
         }
 
         if (!_secEdgarClient.IsConfigured)
         {
             return mode == ResearchExecutionMode.LiveRequired
                 ? ProviderResult<FinancialStatement>.TransientFailure("SEC EDGAR was enabled but no valid User-Agent was configured.", false, ProviderOrigin.Live, "SEC EDGAR")
-                : ToMockFallback(fallback, "SEC EDGAR was enabled but no valid User-Agent was configured.");
+                : HybridFallback.FromSample(fallback, "SEC EDGAR was enabled but no valid User-Agent was configured.", "SEC EDGAR");
         }
 
         try
@@ -142,7 +154,8 @@ public sealed class HybridFinancialStatementProvider : IFinancialStatementProvid
             }
             else
             {
-                TryBuildLiveStatement(identifier, companyFacts, _timeProvider.GetUtcNow(), out statement, out unavailableReason);
+                var asOf = _jobExecutionContextAccessor.Current?.AsOf ?? DateOnly.FromDateTime(_timeProvider.GetUtcNow().UtcDateTime);
+                TryBuildLiveStatement(identifier, companyFacts, AsOfCutoff(asOf), out statement, out unavailableReason);
             }
 
             if (statement is null)
@@ -150,7 +163,7 @@ public sealed class HybridFinancialStatementProvider : IFinancialStatementProvid
                 _logger.LogInformation("SEC EDGAR financial facts for {Identifier} were incomplete: {Reason}.", identifier, unavailableReason);
                 return mode == ResearchExecutionMode.LiveRequired
                     ? ProviderResult<FinancialStatement>.Empty(errorMessage: $"SEC EDGAR financial facts were incomplete: {unavailableReason}.", origin: ProviderOrigin.Live, providerName: "SEC EDGAR")
-                    : ToMockFallback(fallback, $"SEC EDGAR financial facts were incomplete ({unavailableReason}), so the seeded mock statements were used.");
+                    : HybridFallback.FromSample(fallback, $"SEC EDGAR financial facts were incomplete ({unavailableReason}), so the seeded mock statements were used.", "SEC EDGAR");
             }
 
             return ProviderResult<FinancialStatement>.Success(statement, ProviderOrigin.Live, "SEC EDGAR");
@@ -160,27 +173,23 @@ public sealed class HybridFinancialStatementProvider : IFinancialStatementProvid
             _logger.LogWarning(ex, "Falling back to mock financial statements for {Identifier}.", identifier);
             return mode == ResearchExecutionMode.LiveRequired
                 ? ProviderResult<FinancialStatement>.TransientFailure("SEC EDGAR financial statement retrieval failed.", false, ProviderOrigin.Live, "SEC EDGAR")
-                : ToMockFallback(fallback, "SEC EDGAR financial statement retrieval failed, so the seeded mock statements were used.");
+                : HybridFallback.FromSample(fallback, "SEC EDGAR financial statement retrieval failed, so the seeded mock statements were used.", "SEC EDGAR");
         }
     }
 
-    private static ProviderResult<FinancialStatement> ToMockFallback(ProviderResult<FinancialStatement> fallback, string reason) =>
-        ProviderResult<FinancialStatement>.Success(
-            fallback.Value!,
-            fallback.Origin,
-            fallback.ProviderName,
-            true,
-            reason);
+    // Filed dates carry no time of day, so a cutoff at midnight of the as-of date keeps the facts filed on that date.
+    internal static DateTimeOffset AsOfCutoff(DateOnly asOf) =>
+        new(asOf.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
 
     private static bool TryBuildLiveStatement(
         string identifier,
         SecCompanyFactsData companyFacts,
-        DateTimeOffset now,
+        DateTimeOffset asOf,
         [NotNullWhen(true)] out FinancialStatement? financialStatement,
         [NotNullWhen(false)] out string? unavailableReason)
     {
         financialStatement = null;
-        var facts = companyFacts.CompanyFactsRoot;
+        var facts = new SecFactsAsOf(companyFacts.CompanyFactsRoot, asOf);
 
         if (!SecFactSelector.TryGetLatestFiscalYearPair(facts, RevenueConcepts, SecFactSelector.Usd, out var revenue, out var previousRevenue))
         {
@@ -204,7 +213,7 @@ public sealed class HybridFinancialStatementProvider : IFinancialStatementProvid
             return false;
         }
 
-        var staleCutoff = now.AddMonths(-MaxFiscalYearAgeMonths);
+        var staleCutoff = asOf.AddMonths(-MaxFiscalYearAgeMonths);
         if (fiscalYearEnd <= staleCutoff)
         {
             unavailableReason = $"the latest fiscal year ended on {fiscalYearEndText}, more than {MaxFiscalYearAgeMonths} months ago";
@@ -233,10 +242,14 @@ public sealed class HybridFinancialStatementProvider : IFinancialStatementProvid
             SecFactSelector.TryGetInstantFact(facts, CashConcepts, SecFactSelector.Usd, fiscalYearEnd, annualReportsOnly: false, out cashFact)
             ? cashFact
             : Missing("cash");
-        var debt = TryGetDebt(facts, fiscalYearEnd, annualReportsOnly: true, out var debtFact) ||
-            TryGetDebt(facts, fiscalYearEnd, annualReportsOnly: false, out debtFact)
-            ? debtFact
-            : Missing("debt");
+        var debt = TryGetDebt(facts, fiscalYearEnd, annualReportsOnly: true, out var debtSelection) ||
+            TryGetDebt(facts, fiscalYearEnd, annualReportsOnly: false, out debtSelection)
+            ? debtSelection
+            : null;
+        if (debt is null)
+        {
+            missing.Add("debt");
+        }
 
         if (operatingIncome is null || operatingCashFlow is null || capitalExpenditure is null || cash is null || debt is null)
         {
@@ -293,9 +306,35 @@ public sealed class HybridFinancialStatementProvider : IFinancialStatementProvid
             fiscalYearEnd,
             TimestampType.AsOf,
             qualityScore,
-            stanceScore);
+            stanceScore)
+        {
+            // The numbers the statement was computed from, each with the filing a reader can open to check it.
+            Figures =
+            [
+                Figure("Revenue", revenue),
+                Figure("Revenue, prior year", previousRevenue),
+                Figure("Operating income", operatingIncome),
+                Figure("Operating cash flow", operatingCashFlow),
+                Figure("Capital expenditure", capitalExpenditure),
+                Figure("Cash and cash equivalents", cash),
+                .. debt.Parts.Select(part => Figure(part.Label, part.Fact))
+            ]
+        };
         unavailableReason = null;
         return true;
+
+        FinancialFigure Figure(string label, SecFactPoint fact) =>
+            new(
+                label,
+                fact.Value,
+                SecFactSelector.Usd,
+                $"us-gaap:{fact.Concept}",
+                fact.StartDate,
+                fact.EndDate,
+                fact.Form,
+                fact.AccessionNumber,
+                fact.FiledDate,
+                SecEdgarLinks.FilingIndex(companyFacts.CikPadded, fact.AccessionNumber));
 
         SecFactPoint? Missing(string figure)
         {
@@ -307,24 +346,29 @@ public sealed class HybridFinancialStatementProvider : IFinancialStatementProvid
     // Total debt at the fiscal year end. A reported total can still leave out current maturities or commercial paper,
     // so it is compared with the non-current part plus the current part, and the larger figure is used.
     private static bool TryGetDebt(
-        JsonElement facts,
+        SecFactsAsOf facts,
         DateTimeOffset fiscalYearEnd,
         bool annualReportsOnly,
-        [NotNullWhen(true)] out SecFactPoint? debt)
+        [NotNullWhen(true)] out DebtSelection? debt)
     {
-        SecFactSelector.TryGetInstantFact(facts, TotalDebtConcepts, SecFactSelector.Usd, fiscalYearEnd, annualReportsOnly, out var total);
+        DebtSelection? total = SecFactSelector.TryGetInstantFact(facts, TotalDebtConcepts, SecFactSelector.Usd, fiscalYearEnd, annualReportsOnly, out var totalFact)
+            ? new DebtSelection(totalFact.Value, [("Debt", totalFact)])
+            : null;
 
-        SecFactPoint? parts = null;
+        DebtSelection? parts = null;
         if (SecFactSelector.TryGetInstantFact(facts, NonCurrentDebtConcepts, SecFactSelector.Usd, fiscalYearEnd, annualReportsOnly, out var nonCurrent))
         {
             parts = SecFactSelector.TryGetInstantFact(facts, CurrentDebtConcepts, SecFactSelector.Usd, fiscalYearEnd, annualReportsOnly, out var current)
-                ? nonCurrent with { Concept = $"{nonCurrent.Concept}+{current.Concept}", Value = nonCurrent.Value + current.Value }
-                : nonCurrent;
+                ? new DebtSelection(nonCurrent.Value + current.Value, [("Debt, non-current", nonCurrent), ("Debt, current", current)])
+                : new DebtSelection(nonCurrent.Value, [("Debt, non-current", nonCurrent)]);
         }
 
         debt = total is null || (parts is not null && parts.Value > total.Value) ? parts : total;
         return debt is not null;
     }
+
+    // The debt figure and the reported facts that make it up: one total, or the non-current and current parts.
+    private sealed record DebtSelection(decimal Value, IReadOnlyList<(string Label, SecFactPoint Fact)> Parts);
 
     private static string FormatDate(DateTimeOffset date) =>
         date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);

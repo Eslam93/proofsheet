@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Proofsheet.Application.Abstractions;
@@ -38,14 +42,14 @@ public sealed class ResponsesCoordinatorAgentServiceTests
 
         var session = new AutonomousJobSession(
             Guid.NewGuid(),
-            "AAPL",
+            "NORTHWIND",
             "corr",
             ResearchExecutionMode.Mock,
-            new ResolvedTickerInfo("AAPL", "Apple Inc.", "NASDAQ", "0000320193"));
+            new ResolvedTickerInfo("NORTHWIND", "Northwind Instruments (fictional)", "Fictional", "n/a"));
 
         var handoff = await service.ExecuteAsync(session, _ => Task.CompletedTask, CancellationToken.None);
 
-        Assert.Equal("AAPL", handoff.Identifier);
+        Assert.Equal("NORTHWIND", handoff.Identifier);
         var tools = Assert.IsType<JsonArray>(responsesApi.Bodies.Single()["tools"]);
         var toolNames = tools.Select(item => item?["name"]?.GetValue<string>()).OfType<string>().ToArray();
         Assert.Equal(
@@ -75,7 +79,7 @@ public sealed class ResponsesCoordinatorAgentServiceTests
                 session.HandoffPacket = new HandoffPacket(
                     session.Identifier,
                     session.ResolvedTicker,
-                    TestEvidenceFactory.Create("AAPL"),
+                    TestEvidenceFactory.Create("NORTHWIND"),
                     Array.Empty<string>(),
                     Array.Empty<ProviderUsageResponse>(),
                     "plan",

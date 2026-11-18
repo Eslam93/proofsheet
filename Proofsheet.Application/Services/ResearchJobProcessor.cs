@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 using Proofsheet.Application.Abstractions;
 using Proofsheet.Application.Models;
 using Proofsheet.Domain.Contracts;
@@ -85,7 +89,8 @@ public sealed class ResearchJobProcessor : IResearchJobProcessor
             Identifier = item.Identifier,
             CorrelationId = item.CorrelationId,
             ExecutionMode = item.ExecutionMode,
-            ResolvedTicker = item.ResolvedTicker
+            ResolvedTicker = item.ResolvedTicker,
+            AsOf = item.AsOf
         };
 
         _logger.LogInformation(
@@ -108,16 +113,17 @@ public sealed class ResearchJobProcessor : IResearchJobProcessor
                         "Planning"));
 
                 var autonomousResult = await _autonomousResearchOrchestrator.ExecuteAsync(item, jobToken);
+                var autonomousReport = autonomousResult.Result with { AsOf = item.AsOf };
                 UpdateRecord(
                     item.JobId,
                     record => ResearchJobStateMachine.MarkCompleted(
                         record,
-                        autonomousResult.Result.GeneratedAtUtc,
-                        autonomousResult.Result,
+                        autonomousReport.GeneratedAtUtc,
+                        autonomousReport,
                         autonomousResult.Warnings,
                         autonomousResult.Trace));
 
-                _logger.LogInformation("Completed autonomous research job {JobId} with signal {Signal}", item.JobId, autonomousResult.Result.Signal);
+                _logger.LogInformation("Completed autonomous research job {JobId} with signal {Signal}", item.JobId, autonomousReport.Signal);
                 return;
             }
 
@@ -149,13 +155,13 @@ public sealed class ResearchJobProcessor : IResearchJobProcessor
 
             if (providerResults.CompanyProfile.Result.Status != ProviderResultStatus.Success)
             {
-                FailCriticalSource(item.JobId, warnings, trace, "Company profile was unavailable after final attempt.");
+                FailCriticalSource(item.JobId, warnings, trace, WithReason("Company profile was unavailable after final attempt.", providerResults.CompanyProfile));
                 return;
             }
 
             if (providerResults.FinancialStatement.Result.Status != ProviderResultStatus.Success)
             {
-                FailCriticalSource(item.JobId, warnings, trace, "Financial statements were unavailable after final attempt.");
+                FailCriticalSource(item.JobId, warnings, trace, WithReason("Financial statements were unavailable after final attempt.", providerResults.FinancialStatement));
                 return;
             }
 
@@ -199,7 +205,7 @@ public sealed class ResearchJobProcessor : IResearchJobProcessor
                     : $"Final reflection confirmed source linkage and confidence {reasoningResult.Confidence}.");
 
             AddTrace(trace, WorkflowStep.Completion, TraceStatus.Completed, $"Completed research job with signal {reasoningResult.Signal} and confidence {reasoningResult.Confidence}.");
-            var completedResult = BuildCompletedResult(item.Identifier, warnings, trace, evidence, reasoningResult, providerResults);
+            var completedResult = BuildCompletedResult(item.Identifier, warnings, trace, evidence, reasoningResult, providerResults) with { AsOf = item.AsOf };
 
             UpdateRecord(
                 item.JobId,
@@ -404,7 +410,7 @@ public sealed class ResearchJobProcessor : IResearchJobProcessor
             return 0;
         }
 
-        var warning = $"{executionResult.SourceType} was unavailable after final attempt.";
+        var warning = WithReason($"{FormatSourceType(executionResult.SourceType)} was unavailable after final attempt.", executionResult);
         warnings.Add(warning);
         AddTrace(trace, WorkflowStep.AdaptiveBranching, TraceStatus.Warning, warning);
         return 1;
@@ -597,7 +603,10 @@ public sealed class ResearchJobProcessor : IResearchJobProcessor
                 false,
                 0,
                 0,
-                0));
+                0))
+        {
+            Figures = FinancialFigureResponse.From(evidence.FinancialStatement)
+        };
     }
 
     private void FailCriticalSource(Guid jobId, List<string> warnings, List<ResearchTraceEvent> trace, string message)
@@ -685,6 +694,15 @@ public sealed class ResearchJobProcessor : IResearchJobProcessor
     {
         if (result.Status != ProviderResultStatus.Success)
         {
+            if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
+            {
+                AddTrace(
+                    trace,
+                    WorkflowStep.ParallelSourceCollection,
+                    TraceStatus.Warning,
+                    $"{FormatSourceType(result.SourceType)} was not available from {result.ProviderName}: {result.ErrorMessage}");
+            }
+
             return;
         }
 
@@ -717,14 +735,21 @@ public sealed class ResearchJobProcessor : IResearchJobProcessor
         };
 
     private static string DescribeProviderOrigin(ProviderOrigin origin, string providerName) =>
-        origin == ProviderOrigin.Live
-            ? $"live provider {providerName}"
-            : $"seeded mock provider {providerName}";
+        origin switch
+        {
+            ProviderOrigin.Live => $"live provider {providerName}",
+            ProviderOrigin.Recorded => $"recorded data from {providerName}",
+            _ => $"seeded mock provider {providerName}"
+        };
+
+    // Provider messages are fixed sentences the providers write, never upstream error text, so they can be shown.
+    private static string WithReason(string message, ProviderExecutionResult result) =>
+        string.IsNullOrWhiteSpace(result.ErrorMessage) ? message : $"{message} {result.ErrorMessage}";
 
     private TimeSpan ResolveEffectiveJobTimeout(ResearchExecutionMode executionMode)
     {
         var configuredTimeout = TimeSpan.FromMilliseconds(Math.Max(_options.JobTimeoutMs, 1000));
-        if (executionMode == ResearchExecutionMode.Mock)
+        if (executionMode is ResearchExecutionMode.Mock or ResearchExecutionMode.Recorded)
         {
             return configuredTimeout;
         }
@@ -742,6 +767,7 @@ public sealed class ResearchJobProcessor : IResearchJobProcessor
         string ProviderName,
         bool FallbackOccurred,
         string? FallbackReason,
+        string? ErrorMessage,
         int RetryCount,
         IReadOnlyList<string> Warnings,
         IReadOnlyList<ResearchTraceEvent> TraceEvents);
@@ -752,7 +778,7 @@ public sealed class ResearchJobProcessor : IResearchJobProcessor
         int RetryCount,
         IReadOnlyList<string> Warnings,
         IReadOnlyList<ResearchTraceEvent> TraceEvents)
-        : ProviderExecutionResult(SourceType, Result.Status, Result.Origin, Result.ProviderName, Result.FallbackOccurred, Result.FallbackReason, RetryCount, Warnings, TraceEvents);
+        : ProviderExecutionResult(SourceType, Result.Status, Result.Origin, Result.ProviderName, Result.FallbackOccurred, Result.FallbackReason, Result.ErrorMessage, RetryCount, Warnings, TraceEvents);
 
     private sealed record ProviderCollectionResult(
         ProviderExecutionResult<CompanyProfile> CompanyProfile,

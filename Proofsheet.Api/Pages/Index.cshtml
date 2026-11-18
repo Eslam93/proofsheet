@@ -8,23 +8,47 @@
     <div class="hero-panel hero-panel--landing">
         <div class="hero-panel__copy">
             <h1>Generate an investment report.</h1>
-            <p class="hero-panel__lede">Search any US-listed company, generate the report, then chat with it.</p>
+            @if (Model.UsesSampleData)
+            {
+                <p class="hero-panel__lede">Pick a sample company, generate the report, then chat with it.</p>
+                <p class="data-label data-label--sample">
+                    No live data is configured on this server, so it only knows fictional sample companies:
+                    @string.Join(", ", Model.SampleCompanies). Their figures, headlines and filings are invented.
+                </p>
+            }
+            else if (Model.UsesRecordedData)
+            {
+                <p class="hero-panel__lede">Pick a company and generate its report. Every figure links to the SEC filing it came from.</p>
+                <p class="data-label data-label--recorded">
+                    This demo replays SEC data recorded on @Model.RecordedOn.ToString("yyyy-MM-dd") for @Model.RecordedCompanies.Count companies:
+                    @string.Join(", ", Model.RecordedCompanies.Select(company => company.Ticker)). Reports are built from what each
+                    company had filed by that date, with no network calls and no model. Market data, news and chat are off. Banks,
+                    oil majors and foreign filers are refused, with the reason.
+                </p>
+            }
+            else
+            {
+                <p class="hero-panel__lede">Search any US-listed company, generate the report, then chat with it.</p>
+            }
         </div>
 
         <form id="research-form" class="control-panel">
             <div class="field-row field-row--stock">
                 <label class="field-label field-label--inline" for="identifier">Stock</label>
                 <div class="autocomplete-shell">
-                    <input id="identifier" name="identifier" class="select-input" type="text" placeholder="Search ticker or company" autocomplete="off" spellcheck="false" value="AAPL" />
+                    <input id="identifier" name="identifier" class="select-input" type="text" placeholder="Search ticker or company" autocomplete="off" spellcheck="false" value="@Model.DefaultIdentifier" />
                     <div id="ticker-results" class="ticker-results" hidden></div>
                 </div>
-                <label class="field-label field-label--inline" for="research-mode">Mode</label>
-                <div class="select-shell">
-                    <select id="research-mode" name="researchMode" class="select-input">
-                        <option value="Standard" selected>Standard</option>
-                        <option value="Autonomous">Autonomous</option>
-                    </select>
-                </div>
+                @if (Model.OffersAutonomousMode)
+                {
+                    <label class="field-label field-label--inline" for="research-mode">Mode</label>
+                    <div class="select-shell">
+                        <select id="research-mode" name="researchMode" class="select-input">
+                            <option value="Standard" selected>Standard</option>
+                            <option value="Autonomous">Autonomous (experimental)</option>
+                        </select>
+                    </div>
+                }
                 <button id="generate-report" class="primary-button" type="submit">Generate Report</button>
             </div>
 

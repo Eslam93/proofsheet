@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 using Proofsheet.Domain.Contracts;
 using Proofsheet.Domain.Enums;
 using Proofsheet.Domain.Models;
@@ -25,6 +29,14 @@ internal sealed class ProofsheetWebApplicationFactory : WebApplicationFactory<Pr
         _configurationOverrides["SecEdgar:Enabled"] = "false";
         _configurationOverrides["TwelveData:Enabled"] = "false";
         _configurationOverrides["AlphaVantage:Enabled"] = "false";
+        // Blank every key and contact, so a developer's user secrets (loaded because the host runs as Development)
+        // can never reach a live service from a test. A test that needs a key sets a fake one.
+        _configurationOverrides["OpenAiResponses:ApiKey"] = "";
+        _configurationOverrides["SecEdgar:UserAgent"] = "";
+        _configurationOverrides["TwelveData:ApiKey"] = "";
+        _configurationOverrides["AlphaVantage:ApiKey"] = "";
+        // Tests poll quickly from one address; the limits have their own tests, which turn them back on.
+        _configurationOverrides["RateLimiting:Enabled"] = "false";
 
         if (configurationOverrides is not null)
         {
@@ -76,4 +88,13 @@ internal sealed class EmptyFinancialStatementProvider : IFinancialStatementProvi
 {
     public Task<ProviderResult<FinancialStatement>> GetAsync(string identifier, CancellationToken cancellationToken) =>
         Task.FromResult(ProviderResult<FinancialStatement>.Empty(origin: ProviderOrigin.Mock, providerName: "SeededMock"));
+}
+
+/// <summary>Returns a sample company's statement with the given figures attached, as a live statement would carry them.</summary>
+internal sealed class FiguredFinancialStatementProvider(MockResearchSeedCatalog catalog, params FinancialFigure[] figures) : IFinancialStatementProvider
+{
+    public Task<ProviderResult<FinancialStatement>> GetAsync(string identifier, CancellationToken cancellationToken) =>
+        Task.FromResult(catalog.TryGet(identifier, out var seed)
+            ? ProviderResult<FinancialStatement>.Success(seed.FinancialStatement with { Figures = figures }, ProviderOrigin.Live, "SEC EDGAR")
+            : ProviderResult<FinancialStatement>.Empty(origin: ProviderOrigin.Live, providerName: "SEC EDGAR"));
 }

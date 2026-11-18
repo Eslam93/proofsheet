@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 using System.Net;
 using System.Text;
 using Proofsheet.Application.Services;
@@ -106,7 +110,7 @@ public sealed class HybridLiveProviderTests
     }
 
     [Fact]
-    public async Task HybridMarketSnapshotProvider_Falls_Back_To_Mock_When_Live_Request_Fails()
+    public async Task HybridMarketSnapshotProvider_Falls_Back_To_Sample_Data_For_A_Sample_Company()
     {
         var provider = new HybridMarketSnapshotProvider(
             new MockMarketSnapshotProvider(_catalog, new JobExecutionContextAccessor()),
@@ -120,7 +124,7 @@ public sealed class HybridLiveProviderTests
             TimeProvider.System,
             NullLogger<HybridMarketSnapshotProvider>.Instance);
 
-        var result = await provider.GetAsync("AAPL", CancellationToken.None);
+        var result = await provider.GetAsync("NORTHWIND", CancellationToken.None);
 
         Assert.Equal(ProviderResultStatus.Success, result.Status);
         Assert.Equal(ProviderOrigin.Mock, result.Origin);
@@ -333,6 +337,57 @@ public sealed class HybridLiveProviderTests
         Assert.Contains("sec.gov/Archives/edgar/data", result.Value.Items[0].Url);
     }
 
+    [Fact]
+    public async Task HybridMarketSnapshotProvider_Gives_A_Real_Company_No_Invented_Snapshot_When_Live_Request_Fails()
+    {
+        var provider = new HybridMarketSnapshotProvider(
+            new MockMarketSnapshotProvider(_catalog, new JobExecutionContextAccessor()),
+            new HttpClient(new RoutedHandler(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError))),
+            Options.Create(new TwelveDataOptions
+            {
+                Enabled = true,
+                ApiKey = "test-key",
+                BaseUrl = "https://api.twelvedata.com/"
+            }),
+            TimeProvider.System,
+            NullLogger<HybridMarketSnapshotProvider>.Instance);
+
+        var result = await provider.GetAsync("AAPL", CancellationToken.None);
+
+        Assert.Equal(ProviderResultStatus.Empty, result.Status);
+        Assert.Null(result.Value);
+        Assert.False(result.FallbackOccurred);
+        Assert.Equal(ProviderOrigin.Live, result.Origin);
+        Assert.Equal("Twelve Data returned a non-success response.", result.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task HybridNewsProvider_Gives_A_Real_Company_No_Invented_News_When_The_Provider_Is_Disabled()
+    {
+        var provider = new HybridNewsProvider(
+            new MockNewsProvider(_catalog),
+            new HttpClient(new RoutedHandler(_ => throw new InvalidOperationException("No request expected."))),
+            Options.Create(new AlphaVantageOptions { Enabled = false, ApiKey = "", BaseUrl = "https://www.alphavantage.co/" }),
+            TimeProvider.System,
+            NullLogger<HybridNewsProvider>.Instance);
+
+        var result = await provider.GetAsync("AAPL", CancellationToken.None);
+
+        Assert.Equal(ProviderResultStatus.Empty, result.Status);
+        Assert.Null(result.Value);
+        Assert.Equal("Alpha Vantage news provider is disabled.", result.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task Mock_Providers_Have_No_Data_For_A_Real_Company()
+    {
+        var result = await new MockFinancialStatementProvider(_catalog).GetAsync("AAPL", CancellationToken.None);
+
+        Assert.Equal(ProviderResultStatus.Empty, result.Status);
+        Assert.Null(result.Value);
+        Assert.Contains("no sample data for AAPL", result.ErrorMessage, StringComparison.Ordinal);
+    }
+
     // Since .NET 9, a JSON "null" body deserializes to a JsonDocument whose root is Null instead of to null.
     // These tests pin the original "empty payload" handling for that case.
     [Fact]
@@ -350,7 +405,7 @@ public sealed class HybridLiveProviderTests
             TimeProvider.System,
             NullLogger<HybridMarketSnapshotProvider>.Instance);
 
-        var result = await provider.GetAsync("AAPL", CancellationToken.None);
+        var result = await provider.GetAsync("NORTHWIND", CancellationToken.None);
 
         Assert.Equal(ProviderOrigin.Mock, result.Origin);
         Assert.True(result.FallbackOccurred);
@@ -372,7 +427,7 @@ public sealed class HybridLiveProviderTests
             TimeProvider.System,
             NullLogger<HybridNewsProvider>.Instance);
 
-        var result = await provider.GetAsync("AAPL", CancellationToken.None);
+        var result = await provider.GetAsync("NORTHWIND", CancellationToken.None);
 
         Assert.Equal(ProviderOrigin.Mock, result.Origin);
         Assert.True(result.FallbackOccurred);

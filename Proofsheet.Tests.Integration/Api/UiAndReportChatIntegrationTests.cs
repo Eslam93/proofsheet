@@ -1,10 +1,16 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 using System.Collections.Concurrent;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using Proofsheet.Api.Models;
 using Proofsheet.Application.Abstractions;
 using Proofsheet.Application.Models;
+using Proofsheet.Application.Services;
 using Proofsheet.Domain.Contracts;
 using Proofsheet.Domain.Enums;
 using Microsoft.AspNetCore.Http.Connections;
@@ -12,6 +18,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 
 namespace Proofsheet.Tests.Integration.Api;
 
@@ -28,10 +35,39 @@ public sealed class UiAndReportChatIntegrationTests
         var home = await client.GetStringAsync("/");
         Assert.Contains("Generate an investment report", home, StringComparison.OrdinalIgnoreCase);
 
-        var accepted = await SubmitAsync(client, "AAPL");
+        var accepted = await SubmitAsync(client, "NORTHWIND");
         var reportPage = await client.GetStringAsync($"/reports/{accepted.JobId}");
         Assert.Contains("Progress", reportPage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Chat", reportPage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Pages_Say_The_Data_Is_Fictional_And_Not_Investment_Advice()
+    {
+        await using var factory = new ProofsheetWebApplicationFactory();
+        using var client = factory.CreateClient();
+
+        var home = await client.GetStringAsync("/");
+        Assert.Contains("only knows fictional sample companies", home, StringComparison.Ordinal);
+        Assert.Contains("CONTOSO, FABRIKAM, NORTHWIND, TAILSPIN", home, StringComparison.Ordinal);
+        Assert.Contains("value=\"NORTHWIND\"", home, StringComparison.Ordinal);
+        Assert.Contains("Nothing it shows is investment advice.", home, StringComparison.Ordinal);
+
+        var accepted = await SubmitAsync(client, "NORTHWIND");
+        var reportPage = await client.GetStringAsync($"/reports/{accepted.JobId}");
+        Assert.Contains("id=\"report-data-label\"", reportPage, StringComparison.Ordinal);
+        Assert.Contains("Nothing it shows is investment advice.", reportPage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Real_Company_Gets_No_Report_From_Sample_Data()
+    {
+        await using var factory = new ProofsheetWebApplicationFactory();
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync("/api/v1/research-jobs", new SubmitResearchJobRequest { Identifier = "AAPL" });
+
+        Assert.Equal(System.Net.HttpStatusCode.UnprocessableEntity, response.StatusCode);
     }
 
     [Fact]
@@ -48,7 +84,7 @@ public sealed class UiAndReportChatIntegrationTests
             });
         using var client = factory.CreateClient();
 
-        var accepted = await SubmitAsync(client, "AAPL");
+        var accepted = await SubmitAsync(client, "NORTHWIND");
         await WaitForCompletedResultAsync(client, accepted.JobId);
 
         await using var connection = BuildConnection(factory, client.BaseAddress!);
@@ -65,7 +101,7 @@ public sealed class UiAndReportChatIntegrationTests
         var finalMessage = await chatMessageSource.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         Assert.Equal(thread.JobId, finalMessage.JobId);
-        Assert.Contains("financials:AAPL", finalMessage.CitedSourceIds);
+        Assert.Contains("financials:NORTHWIND", finalMessage.CitedSourceIds);
         Assert.Contains(receivedEvents, evt => evt.Kind == "delta");
         Assert.Contains(receivedEvents, evt => evt.Kind == "done");
 
@@ -90,7 +126,7 @@ public sealed class UiAndReportChatIntegrationTests
             });
         using var client = factory.CreateClient();
 
-        var accepted = await SubmitAsync(client, "AAPL");
+        var accepted = await SubmitAsync(client, "NORTHWIND");
 
         await using var connection = BuildConnection(factory, client.BaseAddress!);
         await connection.StartAsync();
@@ -115,7 +151,7 @@ public sealed class UiAndReportChatIntegrationTests
             });
         using var client = factory.CreateClient();
 
-        var accepted = await SubmitAsync(client, "AAPL");
+        var accepted = await SubmitAsync(client, "NORTHWIND");
         await WaitForCompletedResultAsync(client, accepted.JobId);
 
         await using var senderConnection = BuildConnection(factory, client.BaseAddress!);
@@ -143,6 +179,119 @@ public sealed class UiAndReportChatIntegrationTests
 
         Assert.Equal("canceled", canceled.Kind);
         Assert.Contains("canceled", canceled.ProviderEventType, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Upstream_Chat_Error_Reaches_The_Browser_Only_As_A_Reference()
+    {
+        var stub = new StubReportChatService(StubChatMode.Fail);
+        var logs = new CapturingLoggerProvider();
+        await using var factory = new ProofsheetWebApplicationFactory(
+            configureTestServices: services =>
+            {
+                services.RemoveAll<IReportChatService>();
+                services.AddSingleton<IReportChatService>(stub);
+                services.RemoveAll<IReportChatAvailabilityService>();
+                services.AddSingleton<IReportChatAvailabilityService>(new AlwaysEnabledReportChatAvailabilityService());
+                services.AddSingleton<ILoggerProvider>(logs);
+            });
+        using var client = factory.CreateClient();
+
+        var accepted = await SubmitAsync(client, "NORTHWIND");
+        await WaitForCompletedResultAsync(client, accepted.JobId);
+
+        await using var connection = BuildConnection(factory, client.BaseAddress!);
+        var receivedEvents = new ConcurrentQueue<ReportChatStreamEventResponse>();
+        var errorEventSource = new TaskCompletionSource<ReportChatStreamEventResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
+        connection.On<ReportChatStreamEventResponse>("ReceiveStreamEvent", evt =>
+        {
+            receivedEvents.Enqueue(evt);
+            if (evt.Kind == "error")
+            {
+                errorEventSource.TrySetResult(evt);
+            }
+        });
+        await connection.StartAsync();
+        var thread = await connection.InvokeAsync<ReportChatThreadCreatedResponse>("CreateThread", accepted.JobId);
+
+        var exception = await Assert.ThrowsAsync<HubException>(() =>
+            connection.InvokeAsync("SendMessage", thread.ThreadId, "Why is the report bullish?"));
+        // The client can finish the failed call before it has handed the earlier error event to its handler.
+        var errorEvent = await errorEventSource.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        // The browser sees fixed text and a reference, never the provider's error body.
+        Assert.DoesNotContain(StubReportChatService.UpstreamSecret, exception.Message, StringComparison.Ordinal);
+        var match = Regex.Match(exception.Message, "Reference: (?<reference>[0-9a-f]{32})");
+        Assert.True(match.Success, exception.Message);
+        var expectedText = ReportChatFailedException.MessageFor(match.Groups["reference"].Value);
+        Assert.EndsWith(expectedText, exception.Message, StringComparison.Ordinal);
+
+        // The live error event and the replay history carry the same text.
+        Assert.Equal(expectedText, errorEvent.Error);
+        Assert.Single(receivedEvents, evt => evt.Kind == "error");
+        var replay = await connection.InvokeAsync<ReportChatStreamResumeResponse>("ResumeStream", thread.ThreadId, 0L);
+        Assert.Equal(expectedText, Assert.Single(replay.Events, evt => evt.Kind == "error").Error);
+        Assert.DoesNotContain(replay.Events, evt => evt.Error.Contains(StubReportChatService.UpstreamSecret, StringComparison.Ordinal));
+
+        // The server log keeps the original error under the same reference.
+        Assert.Contains(logs.Entries, entry =>
+            entry.Level == LogLevel.Error &&
+            entry.Message.Contains(match.Groups["reference"].Value, StringComparison.Ordinal) &&
+            entry.Exception?.Message.Contains(StubReportChatService.UpstreamSecret, StringComparison.Ordinal) == true);
+    }
+
+    [Fact]
+    public async Task Chat_Requests_Over_The_Hourly_Limit_Are_Refused()
+    {
+        var stub = new StubReportChatService(StubChatMode.Complete);
+        await using var factory = new ProofsheetWebApplicationFactory(
+            RateLimitingTests.Limits(chatRequestsPerHour: 2),
+            services =>
+            {
+                services.RemoveAll<IReportChatService>();
+                services.AddSingleton<IReportChatService>(stub);
+                services.RemoveAll<IReportChatAvailabilityService>();
+                services.AddSingleton<IReportChatAvailabilityService>(new AlwaysEnabledReportChatAvailabilityService());
+            });
+        using var client = factory.CreateClient();
+        var accepted = await SubmitAsync(client, "NORTHWIND");
+        await WaitForCompletedResultAsync(client, accepted.JobId);
+        await using var connection = BuildConnection(factory, client.BaseAddress!);
+        await connection.StartAsync();
+
+        // Opening the thread is the first request and the first message the second; the third is refused.
+        var thread = await connection.InvokeAsync<ReportChatThreadCreatedResponse>("CreateThread", accepted.JobId);
+        await connection.InvokeAsync("SendMessage", thread.ThreadId, "Why is the report bullish?");
+        var exception = await Assert.ThrowsAsync<HubException>(() =>
+            connection.InvokeAsync("SendMessage", thread.ThreadId, "And the risks?"));
+
+        Assert.Contains("Too many chat requests", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Chat_Message_Longer_Than_The_Cap_Is_Refused()
+    {
+        var stub = new StubReportChatService(StubChatMode.Complete);
+        await using var factory = new ProofsheetWebApplicationFactory(
+            configureTestServices: services =>
+            {
+                services.RemoveAll<IReportChatService>();
+                services.AddSingleton<IReportChatService>(stub);
+                services.RemoveAll<IReportChatAvailabilityService>();
+                services.AddSingleton<IReportChatAvailabilityService>(new AlwaysEnabledReportChatAvailabilityService());
+            });
+        using var client = factory.CreateClient();
+        var accepted = await SubmitAsync(client, "NORTHWIND");
+        await WaitForCompletedResultAsync(client, accepted.JobId);
+        await using var connection = BuildConnection(factory, client.BaseAddress!);
+        await connection.StartAsync();
+        var thread = await connection.InvokeAsync<ReportChatThreadCreatedResponse>("CreateThread", accepted.JobId);
+
+        var exception = await Assert.ThrowsAsync<HubException>(() =>
+            connection.InvokeAsync("SendMessage", thread.ThreadId, new string('a', ReportChatOrchestrator.MaxMessageLength + 1)));
+        await connection.InvokeAsync("SendMessage", thread.ThreadId, new string('a', ReportChatOrchestrator.MaxMessageLength));
+
+        Assert.Contains($"limited to {ReportChatOrchestrator.MaxMessageLength} characters", exception.Message, StringComparison.Ordinal);
     }
 
     private static HubConnection BuildConnection(ProofsheetWebApplicationFactory factory, Uri baseAddress)
@@ -190,11 +339,15 @@ public sealed class UiAndReportChatIntegrationTests
     private enum StubChatMode
     {
         Complete,
-        Cancelable
+        Cancelable,
+        Fail
     }
 
     private sealed class StubReportChatService : IReportChatService
     {
+        // Stands in for the provider's 401 body, which quotes part of the key that was sent.
+        public const string UpstreamSecret = "UPSTREAM-BODY-MARKER";
+
         private readonly StubChatMode _mode;
         private readonly TaskCompletionSource<bool> _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -215,7 +368,7 @@ public sealed class UiAndReportChatIntegrationTests
             if (onProviderEvent is not null)
             {
                 await onProviderEvent(new ReportChatProviderEvent("response.output_text.delta", "resp_stream", "The thesis leans bullish because ", "{}"));
-                await onProviderEvent(new ReportChatProviderEvent("response.output_text.delta", "resp_stream", "financials:AAPL remains strong.", "{}"));
+                await onProviderEvent(new ReportChatProviderEvent("response.output_text.delta", "resp_stream", "financials:NORTHWIND remains strong.", "{}"));
             }
 
             if (_mode == StubChatMode.Cancelable)
@@ -223,10 +376,16 @@ public sealed class UiAndReportChatIntegrationTests
                 await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
             }
 
+            if (_mode == StubChatMode.Fail)
+            {
+                throw new InvalidOperationException(
+                    "Responses API HTTP 401: {\"error\":{\"message\":\"Incorrect API key provided: " + UpstreamSecret + ".\",\"type\":\"invalid_request_error\"}}");
+            }
+
             return new ReportChatExecutionResult(
                 string.IsNullOrWhiteSpace(previousResponseId) ? "resp_test_1" : "resp_test_2",
-                "The report is bullish because the financial statement evidence is strong [financials:AAPL].",
-                ["financials:AAPL"]);
+                "The report is bullish because the financial statement evidence is strong [financials:NORTHWIND].",
+                ["financials:NORTHWIND"]);
         }
 
         public Task WaitUntilStartedAsync() => _started.Task;

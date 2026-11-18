@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 (function () {
     "use strict";
 
@@ -137,6 +141,10 @@
             insights: document.getElementById("report-insights"),
             sources: document.getElementById("report-sources"),
             providerUsage: document.getElementById("report-provider-usage"),
+            dataLabel: document.getElementById("report-data-label"),
+            figuresSection: document.getElementById("report-figures-section"),
+            figuresNote: document.getElementById("report-figures-note"),
+            figures: document.getElementById("report-figures"),
             chatTranscript: document.getElementById("chat-transcript"),
             chatEmptyState: document.getElementById("chat-empty-state"),
             chatWelcome: document.getElementById("chat-welcome"),
@@ -312,6 +320,8 @@
         elements.signalCard.className = `metric-card metric-card--signal metric-card--${String(result.signal || "").toLowerCase()}`;
         elements.confidenceCard.className = `metric-card metric-card--confidence metric-card--${confidenceBand(result.confidence)}`;
         elements.thesis.textContent = result.thesis;
+        renderDataLabel(result, elements.dataLabel);
+        renderFigures(result, elements);
         elements.signalRationale.textContent = result.signalDetails?.rationale || "Signal rationale was not provided.";
         elements.confidenceRationale.textContent = result.confidenceDetails?.rationale || "Confidence rationale was not provided.";
         elements.confidenceBounds.textContent = result.confidenceDetails
@@ -348,17 +358,96 @@
         elements.providerUsage.innerHTML = "";
         (result.providerUsage || []).forEach((usage) => {
             const item = document.createElement("li");
-            const fallbackNote = usage.fallbackOccurred && usage.fallbackReason
-                ? `Fallback: ${usage.fallbackReason}`
-                : usage.fallbackOccurred ? "Fallback occurred." : "Primary path succeeded.";
+            const available = usage.status === "Success";
+            const fallbackNote = !available
+                ? "Not available for this report."
+                : usage.fallbackOccurred && usage.fallbackReason
+                    ? `Fallback: ${usage.fallbackReason}`
+                    : usage.fallbackOccurred ? "Fallback occurred." : "Primary path succeeded.";
+            const source = available
+                ? `${humanizeToken(usage.origin)} via ${sourceProviderLabel(usage.providerName || "Unknown provider")}`
+                : `Not available from ${sourceProviderLabel(usage.providerName || "Unknown provider")}`;
 
             item.innerHTML = [
                 `<strong>${escapeHtml(humanizeToken(usage.domain))}</strong>`,
-                `<span>${escapeHtml(humanizeToken(usage.origin))} via ${escapeHtml(sourceProviderLabel(usage.providerName || "Unknown provider"))}</span>`,
+                `<span>${escapeHtml(source)}</span>`,
                 `<small>${escapeHtml(fallbackNote)}</small>`
             ].join("");
             elements.providerUsage.appendChild(item);
         });
+    }
+
+    // Says what the report's data is, from the origin each domain actually came from, so fictional sample data can
+    // never pass for a real company's figures.
+    function renderDataLabel(result, label) {
+        const usages = (result.providerUsage || []).filter((usage) => usage.status === "Success");
+        const sample = usages.filter((usage) => usage.origin === "Mock");
+        const recorded = usages.filter((usage) => usage.origin === "Recorded");
+        const recordedOn = document.getElementById("report-page")?.dataset.recordedOn;
+        let text;
+        let kind;
+        if (usages.length > 0 && recorded.length === usages.length) {
+            kind = "recorded";
+            text = `Recorded SEC data: every figure is what the company had filed with the SEC by ${result.asOf || recordedOn || "the recording date"}, replayed from a recording${recordedOn ? ` made on ${recordedOn}` : ""}, and a template wrote the text. Market data, news and chat are off in this demo.`;
+        } else if (usages.length > 0 && sample.length === usages.length) {
+            kind = "sample";
+            text = "Fictional sample data. This company and every figure, headline and filing excerpt in this report are invented to show how Proofsheet works.";
+        } else if (sample.length > 0) {
+            kind = "sample";
+            text = `Partly fictional sample data: ${sample.map((usage) => humanizeToken(usage.domain).toLowerCase()).join(", ")} came from sample data; the rest is live data retrieved ${formatDate(result.generatedAtUtc)}.`;
+        } else {
+            kind = "live";
+            const providers = [...new Set(usages.map((usage) => sourceProviderLabel(usage.providerName)))];
+            text = `Live data from ${providers.join(", ")}, retrieved ${formatDate(result.generatedAtUtc)}.`;
+        }
+
+        label.textContent = `${text} Not investment advice.`;
+        label.className = `data-label data-label--${kind}`;
+    }
+
+    // Every figure links to the EDGAR filing it was reported in, so a reader can check it against the filing itself.
+    function renderFigures(result, elements) {
+        const figures = result.figures || [];
+        elements.figuresSection.hidden = figures.length === 0;
+        if (figures.length === 0) {
+            return;
+        }
+
+        const asOf = result.asOf ? ` on or before ${result.asOf}` : "";
+        elements.figuresNote.textContent = `Each figure is a fact the company filed with the SEC${asOf}, in US dollars as the filing reports it. The link opens that filing on EDGAR.`;
+        const body = elements.figures.querySelector("tbody");
+        body.innerHTML = "";
+        figures.forEach((figure) => {
+            const row = document.createElement("tr");
+            const period = figure.periodStart
+                ? `${isoDate(figure.periodStart)} to ${isoDate(figure.periodEnd)}`
+                : `at ${isoDate(figure.periodEnd)}`;
+            const filingLabel = `${figure.form || "Filing"} filed ${isoDate(figure.filedDate)}`;
+            const filing = isEdgarUrl(figure.filingUrl)
+                ? `<a href="${escapeHtml(figure.filingUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(filingLabel)}</a>`
+                : escapeHtml(filingLabel);
+            row.innerHTML = [
+                `<td>${escapeHtml(figure.label)}</td>`,
+                `<td class="figure-table__value">${escapeHtml(formatUsdMillions(figure.value))}</td>`,
+                `<td>${escapeHtml(period)}</td>`,
+                `<td><code>${escapeHtml(figure.concept)}</code></td>`,
+                `<td>${filing}<small>${escapeHtml(figure.accessionNumber || "")}</small></td>`
+            ].join("");
+            body.appendChild(row);
+        });
+    }
+
+    function isEdgarUrl(value) {
+        return typeof value === "string" && value.startsWith("https://www.sec.gov/Archives/edgar/data/");
+    }
+
+    function formatUsdMillions(value) {
+        const millions = Number(value) / 1e6;
+        return `$${millions.toLocaleString("en-US", { maximumFractionDigits: 1 })}M`;
+    }
+
+    function isoDate(value) {
+        return String(value || "").slice(0, 10);
     }
 
     function renderWarnings(warnings, warningsList) {
@@ -928,7 +1017,7 @@
     }
 
     function sourceProviderLabel(value) {
-        return value === "SeededMock" ? "Seeded Mock" : value;
+        return value === "SeededMock" ? "Fictional sample data" : value;
     }
 
     function scrollTranscript(container) {
@@ -945,7 +1034,10 @@
         }
 
         if (error.message) {
-            return error.message;
+            // SignalR wraps the server's text as "An unexpected error occurred invoking 'X' on the server. HubException: ...".
+            const marker = "HubException: ";
+            const index = error.message.indexOf(marker);
+            return index >= 0 ? error.message.slice(index + marker.length) : error.message;
         }
 
         return "The chat request failed.";

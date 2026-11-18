@@ -4,7 +4,7 @@
     ViewData["Title"] = "Report";
 }
 
-<section id="report-page" class="report-page" data-job-id="@Model.JobId" data-chat-enabled="@Model.IsReportChatConfigured.ToString().ToLowerInvariant()" data-chat-unavailable-reason="@Model.ReportChatUnavailableReason">
+<section id="report-page" class="report-page" data-job-id="@Model.JobId" data-chat-enabled="@Model.IsReportChatConfigured.ToString().ToLowerInvariant()" data-chat-unavailable-reason="@Model.ReportChatUnavailableReason" data-recorded-on="@Model.RecordedOn">
     <div class="report-page__header">
         <div class="report-page__identity">
             <h1 id="report-company">Preparing report</h1>
@@ -19,6 +19,8 @@
     <div class="report-main">
         <section class="surface-card surface-card--hero">
             <div id="report-content" class="report-content" hidden>
+                <p id="report-data-label" class="data-label"></p>
+
                 <div class="report-overview">
                     <article id="signal-card" class="metric-card metric-card--signal">
                         <span class="metric-card__label">Signal</span>
@@ -54,6 +56,19 @@
                 <article class="report-section">
                     <h3>Insights</h3>
                     <ul id="report-insights" class="report-list"></ul>
+                </article>
+
+                <article id="report-figures-section" class="report-section" hidden>
+                    <h3>Figures from the filings</h3>
+                    <p id="report-figures-note" class="report-section__subtle"></p>
+                    <div class="figure-table-shell">
+                        <table id="report-figures" class="figure-table">
+                            <thead>
+                                <tr><th>Figure</th><th>Value</th><th>Period</th><th>XBRL concept</th><th>Filing</th></tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
                 </article>
 
                 <article class="report-section">
@@ -98,7 +113,7 @@
 
             @if (!Model.IsReportChatConfigured)
             {
-                <p class="form-message">Report chat is unavailable until <code>OpenAiResponses</code> is configured.</p>
+                <p class="form-message">@Model.ReportChatUnavailableReason</p>
             }
 
             <div id="chat-panel" class="chat-panel">
@@ -111,7 +126,7 @@
                 <div id="chat-transcript" class="chat-transcript" aria-live="polite"></div>
 
                 <form id="chat-form" class="chat-form">
-                    <textarea id="chat-message" class="chat-input" placeholder="Ask me anything." rows="3" disabled></textarea>
+                    <textarea id="chat-message" class="chat-input" placeholder="Ask me anything." rows="3" maxlength="@Proofsheet.Application.Services.ReportChatOrchestrator.MaxMessageLength" disabled></textarea>
                     <div class="chat-actions">
                         <button id="chat-send" class="primary-button primary-button--icon" type="submit">Send <span aria-hidden="true">↗</span></button>
                     </div>

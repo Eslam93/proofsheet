@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 using Proofsheet.Application.Abstractions;
 using Proofsheet.Application.Models;
 using Proofsheet.Domain.Enums;
@@ -174,7 +178,10 @@ public sealed class AutonomousResearchOrchestrator : IAutonomousResearchOrchestr
                 session.HandoffOccurred,
                 session.ToolCallCount,
                 session.ReflectionRounds,
-                session.ValidationRetries));
+                session.ValidationRetries))
+        {
+            Figures = FinancialFigureResponse.From(handoffPacket.Evidence.FinancialStatement)
+        };
     }
 
     private void UpdateRecord(Guid jobId, Func<ResearchJobRecord, ResearchJobRecord> update)

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 using Proofsheet.Domain.Enums;
 
 namespace Proofsheet.Application.Models;
@@ -15,6 +19,9 @@ public sealed class JobExecutionContext
     public required ResearchExecutionMode ExecutionMode { get; init; }
 
     public required ResolvedTickerInfo ResolvedTicker { get; init; }
+
+    /// <summary>Only data filed on or before this date counts. Null means today.</summary>
+    public DateOnly? AsOf { get; init; }
 
     public bool ConsumeTransientFailure(string key) => _consumedTransientFailureKeys.Add(key);
 }

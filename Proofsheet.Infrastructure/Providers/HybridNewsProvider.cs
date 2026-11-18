@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 using System.Globalization;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -62,6 +66,11 @@ public sealed class HybridNewsProvider : INewsProvider
     public async Task<ProviderResult<NewsCoverage>> GetAsync(string identifier, CancellationToken cancellationToken)
     {
         var mode = _jobExecutionContextAccessor.Current?.ExecutionMode ?? ResearchExecutionMode.Mock;
+        if (mode == ResearchExecutionMode.Recorded)
+        {
+            return RecordedResults.NotRecorded<NewsCoverage>("News coverage", "Alpha Vantage");
+        }
+
         var fallback = await _mockProvider.GetAsync(identifier, cancellationToken);
         if (mode == ResearchExecutionMode.Mock)
         {
@@ -72,14 +81,14 @@ public sealed class HybridNewsProvider : INewsProvider
         {
             return mode == ResearchExecutionMode.LiveRequired
                 ? ProviderResult<NewsCoverage>.TransientFailure("Alpha Vantage news provider is disabled.", false, ProviderOrigin.Live, "Alpha Vantage")
-                : fallback;
+                : HybridFallback.WhenDisabled(fallback, "Alpha Vantage news provider is disabled.", "Alpha Vantage");
         }
 
         if (string.IsNullOrWhiteSpace(_options.ApiKey))
         {
             return mode == ResearchExecutionMode.LiveRequired
                 ? ProviderResult<NewsCoverage>.TransientFailure("Alpha Vantage was enabled but no API key was configured.", false, ProviderOrigin.Live, "Alpha Vantage")
-                : ToMockFallback(fallback, "Alpha Vantage was enabled but no API key was configured.");
+                : HybridFallback.FromSample(fallback, "Alpha Vantage was enabled but no API key was configured.", "Alpha Vantage");
         }
 
         try
@@ -91,7 +100,7 @@ public sealed class HybridNewsProvider : INewsProvider
                 _logger.LogWarning("Alpha Vantage news request for {Identifier} returned {StatusCode}.", identifier, response.StatusCode);
                 return mode == ResearchExecutionMode.LiveRequired
                     ? ProviderResult<NewsCoverage>.TransientFailure("Alpha Vantage returned a non-success response.", false, ProviderOrigin.Live, "Alpha Vantage")
-                    : ToMockFallback(fallback, "Alpha Vantage returned a non-success response, so the seeded mock news coverage was used.");
+                    : HybridFallback.FromSample(fallback, "Alpha Vantage returned a non-success response, so the seeded mock news coverage was used.", "Alpha Vantage");
             }
 
             // Since .NET 9, a JSON "null" body deserializes to a JsonDocument whose root is Null instead of to null.
@@ -100,7 +109,7 @@ public sealed class HybridNewsProvider : INewsProvider
             {
                 return mode == ResearchExecutionMode.LiveRequired
                     ? ProviderResult<NewsCoverage>.TransientFailure("Alpha Vantage returned an empty payload.", false, ProviderOrigin.Live, "Alpha Vantage")
-                    : ToMockFallback(fallback, "Alpha Vantage returned an empty payload, so the seeded mock news coverage was used.");
+                    : HybridFallback.FromSample(fallback, "Alpha Vantage returned an empty payload, so the seeded mock news coverage was used.", "Alpha Vantage");
             }
 
             var root = payload.RootElement;
@@ -111,14 +120,14 @@ public sealed class HybridNewsProvider : INewsProvider
                 _logger.LogWarning("Alpha Vantage news request for {Identifier} returned a throttled or error payload.", identifier);
                 return mode == ResearchExecutionMode.LiveRequired
                     ? ProviderResult<NewsCoverage>.TransientFailure("Alpha Vantage returned a throttled or error payload.", false, ProviderOrigin.Live, "Alpha Vantage")
-                    : ToMockFallback(fallback, "Alpha Vantage returned a throttled or error payload, so the seeded mock news coverage was used.");
+                    : HybridFallback.FromSample(fallback, "Alpha Vantage returned a throttled or error payload, so the seeded mock news coverage was used.", "Alpha Vantage");
             }
 
             if (!root.TryGetProperty("feed", out var feedElement) || feedElement.ValueKind != JsonValueKind.Array)
             {
                 return mode == ResearchExecutionMode.LiveRequired
                     ? ProviderResult<NewsCoverage>.Empty(errorMessage: "Alpha Vantage did not return a usable feed.", origin: ProviderOrigin.Live, providerName: "Alpha Vantage")
-                    : ToMockFallback(fallback, "Alpha Vantage did not return a usable feed, so the seeded mock news coverage was used.");
+                    : HybridFallback.FromSample(fallback, "Alpha Vantage did not return a usable feed, so the seeded mock news coverage was used.", "Alpha Vantage");
             }
 
             var items = new List<NewsItem>();
@@ -163,7 +172,7 @@ public sealed class HybridNewsProvider : INewsProvider
             {
                 return mode == ResearchExecutionMode.LiveRequired
                     ? ProviderResult<NewsCoverage>.Empty(errorMessage: "Alpha Vantage did not return usable ticker-matched news items.", origin: ProviderOrigin.Live, providerName: "Alpha Vantage")
-                    : ToMockFallback(fallback, "Alpha Vantage did not return usable ticker-matched news items, so the seeded mock news coverage was used.");
+                    : HybridFallback.FromSample(fallback, "Alpha Vantage did not return usable ticker-matched news items, so the seeded mock news coverage was used.", "Alpha Vantage");
             }
 
             var coverageQuality = Math.Round(items.Average(item => item.QualityScore), 2, MidpointRounding.AwayFromZero);
@@ -187,17 +196,9 @@ public sealed class HybridNewsProvider : INewsProvider
             _logger.LogWarning(ex, "Falling back to mock news coverage for {Identifier}.", identifier);
             return mode == ResearchExecutionMode.LiveRequired
                 ? ProviderResult<NewsCoverage>.TransientFailure("Alpha Vantage news retrieval failed.", false, ProviderOrigin.Live, "Alpha Vantage")
-                : ToMockFallback(fallback, "Alpha Vantage news retrieval failed, so the seeded mock news coverage was used.");
+                : HybridFallback.FromSample(fallback, "Alpha Vantage news retrieval failed, so the seeded mock news coverage was used.", "Alpha Vantage");
         }
     }
-
-    private static ProviderResult<NewsCoverage> ToMockFallback(ProviderResult<NewsCoverage> fallback, string reason) =>
-        ProviderResult<NewsCoverage>.Success(
-            fallback.Value!,
-            fallback.Origin,
-            fallback.ProviderName,
-            true,
-            reason);
 
     private static decimal TryResolveTickerMetric(JsonElement feedItem, string identifier, string metricName, decimal fallback)
     {

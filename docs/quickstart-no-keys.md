@@ -6,7 +6,7 @@ The important default behavior is:
 
 - the app runs successfully with no secrets
 - report generation works out of the box
-- the app automatically falls back to local mock mode
+- the app automatically falls back to local mock mode, with four fictional sample companies
 - live providers are disabled
 - report chat is disabled
 - autonomous mode should not be used until OpenAI Responses is configured
@@ -46,7 +46,7 @@ In that state:
 
 - `Auto` resolves to `Mock`
 - the standard report pipeline works
-- seeded mock data is used
+- only the fictional sample companies `NORTHWIND`, `FABRIKAM`, `TAILSPIN` and `CONTOSO` are available, and their figures are invented
 - autonomous mode is not available
 - report chat is not available
 
@@ -83,8 +83,8 @@ You can also open Swagger at:
 
 On the home page:
 
-1. Search for a company or ticker
-2. Pick a resolved company
+1. Search for a sample company (the page lists them)
+2. Pick it
 3. Keep the mode set to `Standard`
 4. Click `Generate Report`
 
@@ -94,7 +94,7 @@ Expected result:
 
 - the report runs successfully
 - progress updates appear while the job is processing
-- the completed report loads using seeded mock data
+- the completed report loads, labelled as fictional sample data
 
 ## 6. What Should Work Without Keys
 
@@ -123,7 +123,8 @@ Expected behavior without keys:
 - `Standard` mode works
 - `Autonomous` mode will fail because OpenAI Responses is not configured
 - `Chat with the report` will stay disabled
-- provider provenance in reports will show mock providers
+- provider provenance in reports will show fictional sample data
+- a real ticker such as `AAPL` is refused with `422`, because there is no sample data for real companies
 
 ## 8. How to Verify the No-Key Run
 
@@ -148,7 +149,7 @@ Example request:
 ```bash
 curl -X POST http://localhost:5214/api/v1/research-jobs \
   -H "Content-Type: application/json" \
-  -d "{\"identifier\":\"AAPL\",\"researchMode\":\"Standard\"}"
+  -d "{\"identifier\":\"NORTHWIND\",\"researchMode\":\"Standard\"}"
 ```
 
 Expected behavior:
@@ -181,7 +182,7 @@ If you are evaluating the project quickly, this is the simplest path:
 2. run `dotnet run --project Proofsheet.Api --launch-profile http`
 3. open `http://localhost:5214/`
 4. choose `Standard`
-5. generate a report for `AAPL`
+5. generate a report for `NORTHWIND`
 6. inspect the trace, provenance, and final JSON
 
 That is the intended no-key demo path.
@@ -247,7 +248,7 @@ For a fresh GitHub clone with no keys:
 
 - run the app
 - use `Standard`
-- expect mock-backed reports
+- expect reports on fictional sample companies, labelled as such
 - expect chat and autonomous mode to remain disabled
 
 That is the correct and supported zero-secret local path.

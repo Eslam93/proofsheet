@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 using System.Text.Json.Serialization;
 using Proofsheet.Domain.Enums;
 
@@ -60,4 +64,10 @@ public sealed record CompletedResearchResult(
             new OrchestrationDetailResponse(ResearchMode.Standard, null, null, false, 0, 0, 0))
     {
     }
+
+    /// <summary>Only data filed on or before this date was used, so the same date gives the same figures.</summary>
+    public DateOnly? AsOf { get; init; }
+
+    /// <summary>The reported figures behind the financial statement, each with its filing. Empty for sample data.</summary>
+    public IReadOnlyList<FinancialFigureResponse> Figures { get; init; } = [];
 }

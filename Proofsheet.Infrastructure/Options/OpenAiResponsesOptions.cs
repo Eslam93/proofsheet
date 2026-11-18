@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 namespace Proofsheet.Infrastructure.Options;
 
 public sealed class OpenAiResponsesOptions

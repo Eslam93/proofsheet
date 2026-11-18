@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 using Proofsheet.Domain.Enums;
 using Proofsheet.Domain.Models;
 using Proofsheet.Domain.Services;
@@ -9,10 +13,10 @@ namespace Proofsheet.Tests.Unit.Scoring;
 public sealed class DeterministicScoringCalculatorTests
 {
     [Fact]
-    public void Calculate_Uses_LowNews_Mode_For_TSLA()
+    public void Calculate_Uses_LowNews_Mode_For_The_Degraded_Sample()
     {
         var catalog = new MockResearchSeedCatalog();
-        Assert.True(catalog.TryGet("TSLA", out var seed));
+        Assert.True(catalog.TryGet(MockResearchSeedCatalog.DegradedIdentifier, out var seed));
 
         var assessment = DeterministicScoringCalculator.Calculate(
             new ResearchScoringInput(
@@ -32,9 +36,9 @@ public sealed class DeterministicScoringCalculatorTests
     }
 
     [Fact]
-    public async Task DeterministicReasoner_Returns_Bullish_For_Aapl()
+    public async Task DeterministicReasoner_Returns_Bullish_For_The_Strong_Sample()
     {
-        var evidence = TestEvidenceFactory.Create("AAPL");
+        var evidence = TestEvidenceFactory.Create("NORTHWIND");
         var reasoner = new DeterministicResearchReasoner();
 
         var result = await reasoner.SynthesizeAsync(evidence, CancellationToken.None);

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 using Proofsheet.Application.Abstractions;
 using Proofsheet.Application.Models;
 using Proofsheet.Application.Services;
@@ -23,7 +27,7 @@ public sealed class ResearchJobSubmissionServiceTests
             Options.Create(new ResearchExecutionOptions()),
             NullLogger<ResearchJobSubmissionService>.Instance);
 
-        var result = await service.SubmitAsync("AAPL", null, CancellationToken.None);
+        var result = await service.SubmitAsync("AAPL", null, null, CancellationToken.None);
 
         Assert.False(result.IsAccepted);
         Assert.Equal("QueueCapacityExceeded", result.Problem!.ErrorCode);
@@ -43,7 +47,7 @@ public sealed class ResearchJobSubmissionServiceTests
             Options.Create(new ResearchExecutionOptions()),
             NullLogger<ResearchJobSubmissionService>.Instance);
 
-        var result = await service.SubmitAsync("msft", ResearchMode.Autonomous, CancellationToken.None);
+        var result = await service.SubmitAsync("msft", ResearchMode.Autonomous, null, CancellationToken.None);
 
         Assert.True(result.IsAccepted);
         Assert.Equal(JobStatus.Queued, result.AcceptedResponse!.Status);

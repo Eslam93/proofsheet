@@ -1,5 +1,10 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 using Proofsheet.Application.Abstractions;
 using Proofsheet.Application.Models;
+using Proofsheet.Domain.Enums;
 using Proofsheet.Infrastructure.Clients;
 using Proofsheet.Infrastructure.Providers;
 
@@ -9,12 +14,17 @@ public sealed class TickerDirectoryService : ITickerDirectoryService
 {
     private readonly SecEdgarClient _secEdgarClient;
     private readonly MockResearchSeedCatalog _seedCatalog;
+    private readonly IResearchExecutionModeResolver _executionModeResolver;
 
-    public TickerDirectoryService(SecEdgarClient secEdgarClient, MockResearchSeedCatalog seedCatalog)
+    public TickerDirectoryService(SecEdgarClient secEdgarClient, MockResearchSeedCatalog seedCatalog, IResearchExecutionModeResolver executionModeResolver)
     {
         _secEdgarClient = secEdgarClient;
         _seedCatalog = seedCatalog;
+        _executionModeResolver = executionModeResolver;
     }
+
+    // Only Mock and Hybrid have sample data to give the fictional companies; elsewhere they would only fail later.
+    private bool OffersSampleCompanies => _executionModeResolver.Resolve() is ResearchExecutionMode.Mock or ResearchExecutionMode.Hybrid;
 
     public async Task<ResolvedTickerInfo?> ResolveAsync(string identifier, CancellationToken cancellationToken = default)
     {
@@ -24,7 +34,7 @@ public sealed class TickerDirectoryService : ITickerDirectoryService
             return new ResolvedTickerInfo(profile.Identifier, profile.CompanyName, profile.Exchange, profile.CikPadded);
         }
 
-        return _seedCatalog.TryGet(identifier, out var seed)
+        return OffersSampleCompanies && _seedCatalog.TryGet(identifier, out var seed)
             ? new ResolvedTickerInfo(seed.CompanyProfile.Identifier, seed.CompanyProfile.CompanyName, seed.CompanyProfile.Exchange, seed.CompanyProfile.CikPadded)
             : null;
     }
@@ -39,7 +49,7 @@ public sealed class TickerDirectoryService : ITickerDirectoryService
                 .ToArray();
         }
 
-        return SeedSearch(query, limit);
+        return OffersSampleCompanies ? SeedSearch(query, limit) : Array.Empty<TickerSearchItemResponse>();
     }
 
     private IReadOnlyList<TickerSearchItemResponse> SeedSearch(string query, int limit)
@@ -50,7 +60,7 @@ public sealed class TickerDirectoryService : ITickerDirectoryService
         }
 
         var normalized = query.Trim();
-        return new[] { "AAPL", "MSFT", "NVDA", "TSLA", "JPM", "AMZN", "GOOGL", "AMD", "XOM", "UNH" }
+        return _seedCatalog.Identifiers
             .Select(symbol => _seedCatalog.TryGet(symbol, out var seed)
                 ? new TickerSearchItemResponse(seed.CompanyProfile.Identifier, seed.CompanyProfile.CompanyName, seed.CompanyProfile.Exchange, seed.CompanyProfile.CikPadded)
                 : null)

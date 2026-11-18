@@ -1,6 +1,11 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 using System.Text.Json.Serialization;
 using Proofsheet.Api.Middleware;
 using Proofsheet.Api.Hubs;
+using Proofsheet.Api.RateLimiting;
 using Proofsheet.Infrastructure.DependencyInjection;
 using Microsoft.AspNetCore.Mvc;
 
@@ -28,6 +33,7 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
     options.SuppressModelStateInvalidFilter = true;
 });
 builder.Services.AddProofsheetBackend(builder.Configuration);
+builder.Services.AddClientRateLimits(builder.Configuration);
 
 var app = builder.Build();
 
@@ -45,6 +51,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseStaticFiles();
+app.UseRateLimiter();
 app.MapControllers();
 app.MapRazorPages();
 app.MapHub<ReportChatHub>("/hubs/report-chat");

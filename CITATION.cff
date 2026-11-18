@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: 2026 Eslam Hamed
+#
+# SPDX-License-Identifier: MIT
+
+cff-version: 1.2.0
+message: "If you refer to Proofsheet, please cite it as below."
+type: software
+title: "Proofsheet"
+abstract: "A .NET 10 investment-research backend that reads a company's financial statements from its SEC filings, runs the research as an observable background job, and returns a structured report you can chat with."
+authors:
+  - given-names: Eslam
+    family-names: Hamed
+    website: "https://eslamhamed.com"
+repository-code: "https://github.com/Eslam93/proofsheet"
+url: "https://eslamhamed.com"
+license: MIT
+keywords:
+  - dotnet
+  - sec-edgar
+  - xbrl
+  - investment-research

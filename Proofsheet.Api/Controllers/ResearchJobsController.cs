@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 using Proofsheet.Api.Models;
 using Proofsheet.Application.Abstractions;
 using Proofsheet.Application.Models;
@@ -44,7 +48,7 @@ public sealed class ResearchJobsController : ControllerBase
                     "InvalidRequest"));
         }
 
-        var result = await _submissionService.SubmitAsync(request?.Identifier, request?.ResearchMode, cancellationToken);
+        var result = await _submissionService.SubmitAsync(request?.Identifier, request?.ResearchMode, request?.AsOf, cancellationToken);
         if (result.IsAccepted)
         {
             return Accepted(result.AcceptedResponse!.StatusUrl, result.AcceptedResponse);

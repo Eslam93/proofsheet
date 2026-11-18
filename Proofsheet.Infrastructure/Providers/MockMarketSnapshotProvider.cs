@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 using Proofsheet.Application.Abstractions;
 using Proofsheet.Domain.Contracts;
 using Proofsheet.Domain.Enums;
@@ -20,14 +24,18 @@ public sealed class MockMarketSnapshotProvider : IMarketSnapshotProvider
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var seed = _catalog.GetOrGenerate(identifier, _jobExecutionContextAccessor.Current?.ResolvedTicker);
-
-        if (identifier.Equals("TSLA", StringComparison.OrdinalIgnoreCase) &&
-            _jobExecutionContextAccessor.Current?.ConsumeTransientFailure("market:TSLA") == true)
+        if (!_catalog.TryGet(identifier, out var seed))
         {
-            return Task.FromResult(ProviderResult<MarketSnapshot>.TransientFailure("Market snapshot timed out.", true, ProviderOrigin.Mock, "SeededMock"));
+            return Task.FromResult(MockResearchSeedCatalog.NoSample<MarketSnapshot>(identifier));
         }
 
-        return Task.FromResult(ProviderResult<MarketSnapshot>.Success(seed.MarketSnapshot, ProviderOrigin.Mock, "SeededMock"));
+        // The degraded sample company's market data fails once per job, so the retry path runs without a live provider.
+        if (identifier.Equals(MockResearchSeedCatalog.DegradedIdentifier, StringComparison.OrdinalIgnoreCase) &&
+            _jobExecutionContextAccessor.Current?.ConsumeTransientFailure($"market:{MockResearchSeedCatalog.DegradedIdentifier}") == true)
+        {
+            return Task.FromResult(ProviderResult<MarketSnapshot>.TransientFailure("Market snapshot timed out.", true, ProviderOrigin.Mock, MockResearchSeedCatalog.ProviderName));
+        }
+
+        return Task.FromResult(MockResearchSeedCatalog.Sample(seed.MarketSnapshot));
     }
 }

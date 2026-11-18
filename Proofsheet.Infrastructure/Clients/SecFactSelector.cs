@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.Json;
@@ -34,7 +38,7 @@ public static class SecFactSelector
     /// is used for both; earlier concepts in <paramref name="concepts"/> win ties.
     /// </summary>
     public static bool TryGetLatestFiscalYearPair(
-        JsonElement companyFacts,
+        SecFactsAsOf companyFacts,
         IReadOnlyList<string> concepts,
         string unit,
         [NotNullWhen(true)] out SecFactPoint? latest,
@@ -75,7 +79,7 @@ public static class SecFactSelector
     /// <paramref name="fiscalYearEnd"/>.
     /// </summary>
     public static bool TryGetFiscalYearAfter(
-        JsonElement companyFacts,
+        SecFactsAsOf companyFacts,
         IReadOnlyList<string> concepts,
         string unit,
         DateTimeOffset fiscalYearEnd,
@@ -100,7 +104,7 @@ public static class SecFactSelector
     /// Gets the fiscal year that ends on <paramref name="fiscalYearEnd"/> from the first concept that reports it.
     /// </summary>
     public static bool TryGetFiscalYearFact(
-        JsonElement companyFacts,
+        SecFactsAsOf companyFacts,
         IReadOnlyList<string> concepts,
         string unit,
         DateTimeOffset fiscalYearEnd,
@@ -125,7 +129,7 @@ public static class SecFactSelector
     /// comparative cannot change a fiscal year's balance.
     /// </summary>
     public static bool TryGetInstantFact(
-        JsonElement companyFacts,
+        SecFactsAsOf companyFacts,
         IReadOnlyList<string> concepts,
         string unit,
         DateTimeOffset date,
@@ -150,7 +154,7 @@ public static class SecFactSelector
         return false;
     }
 
-    private static IReadOnlyList<SecFactPoint> GetFiscalYears(JsonElement companyFacts, string concept, string unit) =>
+    private static IReadOnlyList<SecFactPoint> GetFiscalYears(SecFactsAsOf companyFacts, string concept, string unit) =>
         ReadFacts(companyFacts, concept, unit)
             .Where(fact => fact.StartDate is not null &&
                 IsAnnualReport(fact) &&
@@ -160,7 +164,7 @@ public static class SecFactSelector
             .OrderByDescending(fact => fact.EndDate)
             .ToArray();
 
-    private static IReadOnlyList<SecFactPoint> GetInstants(JsonElement companyFacts, string concept, string unit, bool annualReportsOnly) =>
+    private static IReadOnlyList<SecFactPoint> GetInstants(SecFactsAsOf companyFacts, string concept, string unit, bool annualReportsOnly) =>
         ReadFacts(companyFacts, concept, unit)
             .Where(fact => fact.StartDate is null && (!annualReportsOnly || IsAnnualReport(fact)))
             .GroupBy(fact => fact.EndDate)
@@ -187,9 +191,9 @@ public static class SecFactSelector
     private static bool IsNear(DateTimeOffset value, DateTimeOffset target) =>
         (value - target).Duration() <= DateTolerance;
 
-    private static IEnumerable<SecFactPoint> ReadFacts(JsonElement companyFacts, string concept, string unit)
+    private static IEnumerable<SecFactPoint> ReadFacts(SecFactsAsOf companyFacts, string concept, string unit)
     {
-        if (!companyFacts.TryGetProperty("facts", out var facts) ||
+        if (!companyFacts.Root.TryGetProperty("facts", out var facts) ||
             !facts.TryGetProperty(Taxonomy, out var taxonomy) ||
             !taxonomy.TryGetProperty(concept, out var conceptElement) ||
             !conceptElement.TryGetProperty("units", out var units) ||
@@ -204,6 +208,12 @@ public static class SecFactSelector
             if (!TryGetDecimal(point, "val", out var value) ||
                 !TryGetDate(point, "end", out var endDate) ||
                 !TryGetDate(point, "filed", out var filedDate))
+            {
+                continue;
+            }
+
+            // A fact filed after the as-of date did not exist yet, so the same date always gives the same figures.
+            if (companyFacts.FiledOnOrBefore is { } cutoff && filedDate > cutoff)
             {
                 continue;
             }
@@ -241,6 +251,15 @@ public static class SecFactSelector
         element.TryGetProperty(propertyName, out var property) && property.ValueKind == JsonValueKind.String
             ? property.GetString()
             : null;
+}
+
+/// <summary>
+/// SEC company facts as they stood at the end of <see cref="FiledOnOrBefore"/>: facts filed later are left out. Without a
+/// date, every fact counts.
+/// </summary>
+public readonly record struct SecFactsAsOf(JsonElement Root, DateTimeOffset? FiledOnOrBefore = null)
+{
+    public static implicit operator SecFactsAsOf(JsonElement root) => new(root);
 }
 
 /// <summary>A single XBRL fact. <see cref="StartDate"/> is null for balances (instants).</summary>

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 using System.Globalization;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -44,9 +48,15 @@ public sealed class SecEdgarClient
 
     public bool IsConfigured => !string.IsNullOrWhiteSpace(_options.UserAgent);
 
+    /// <summary>Set in Recorded mode: the day the replayed data was captured.</summary>
+    public DateOnly? RecordedOn => _options.RecordedOn;
+
+    // Every request needs both: SEC disabled means no request at all, even for a ticker lookup in mock mode.
+    private bool CanCallSec => Enabled && IsConfigured;
+
     public async Task<SecTickerProfile?> GetTickerProfileAsync(string identifier, CancellationToken cancellationToken)
     {
-        if (!IsConfigured)
+        if (!CanCallSec)
         {
             return null;
         }
@@ -66,7 +76,7 @@ public sealed class SecEdgarClient
 
     public async Task<SecSubmissionsData?> GetSubmissionsAsync(string identifier, CancellationToken cancellationToken)
     {
-        if (!IsConfigured)
+        if (!CanCallSec)
         {
             return null;
         }
@@ -88,7 +98,7 @@ public sealed class SecEdgarClient
 
     public async Task<SecCompanyFactsData?> GetCompanyFactsAsync(string identifier, CancellationToken cancellationToken)
     {
-        if (!IsConfigured)
+        if (!CanCallSec)
         {
             return null;
         }
@@ -110,7 +120,7 @@ public sealed class SecEdgarClient
 
     public async Task<IReadOnlyList<SecTickerProfile>> SearchTickerProfilesAsync(string query, int limit, CancellationToken cancellationToken)
     {
-        if (!IsConfigured || string.IsNullOrWhiteSpace(query))
+        if (!CanCallSec || string.IsNullOrWhiteSpace(query))
         {
             return Array.Empty<SecTickerProfile>();
         }

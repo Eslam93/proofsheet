@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -193,6 +197,38 @@ public sealed class SecFactSelectorTests
         Assert.True(SecFactSelector.TryGetFiscalYearAfter(facts.RootElement, ["OperatingIncomeLoss"], "USD", Date("2025-09-27"), out var newer));
         Assert.Equal(Date("2026-09-26"), newer);
         Assert.False(SecFactSelector.TryGetFiscalYearAfter(facts.RootElement, ["OperatingIncomeLoss"], "USD", Date("2026-09-26"), out _));
+    }
+
+    [Fact]
+    public void Facts_Filed_After_The_As_Of_Date_Do_Not_Exist_Yet()
+    {
+        using var facts = Facts(
+            Fact(Revenues, "2024-09-29", "2025-09-27", 400, "10-K", "2025-10-31"),
+            Fact(Revenues, "2023-10-01", "2024-09-28", 380, "10-K", "2024-11-01"),
+            Fact(Revenues, "2022-09-25", "2023-09-30", 370, "10-K", "2023-11-03"));
+
+        var dayBeforeTheTenK = new SecFactsAsOf(facts.RootElement, Date("2025-10-30"));
+        var dayOfTheTenK = new SecFactsAsOf(facts.RootElement, Date("2025-10-31"));
+
+        Assert.True(SecFactSelector.TryGetLatestFiscalYearPair(dayBeforeTheTenK, [Revenues], "USD", out var before, out var beforePrevious));
+        Assert.Equal(380m, before.Value);
+        Assert.Equal(370m, beforePrevious.Value);
+        Assert.True(SecFactSelector.TryGetLatestFiscalYearPair(dayOfTheTenK, [Revenues], "USD", out var on, out _));
+        Assert.Equal(400m, on.Value);
+    }
+
+    [Fact]
+    public void A_Later_Restatement_Does_Not_Change_An_Earlier_As_Of_Date()
+    {
+        using var facts = Facts(
+            Fact(Revenues, "2023-01-01", "2023-12-31", 350, "10-K", "2024-02-14"),
+            Fact(Revenues, "2024-01-01", "2024-12-31", 380, "10-K", "2025-02-14"),
+            Fact(Revenues, "2025-01-01", "2025-12-31", 400, "10-K", "2026-02-13"),
+            Fact(Revenues, "2024-01-01", "2024-12-31", 375, "10-K", "2026-02-13"));
+
+        Assert.True(SecFactSelector.TryGetLatestFiscalYearPair(new SecFactsAsOf(facts.RootElement, Date("2025-12-31")), [Revenues], "USD", out var latest, out _));
+        Assert.Equal(380m, latest.Value);
+        Assert.Equal(Date("2025-02-14"), latest.FiledDate);
     }
 
     private static DateTimeOffset Date(string value) =>

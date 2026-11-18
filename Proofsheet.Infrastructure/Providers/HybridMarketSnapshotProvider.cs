@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 using System.Globalization;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -61,6 +65,11 @@ public sealed class HybridMarketSnapshotProvider : IMarketSnapshotProvider
     public async Task<ProviderResult<MarketSnapshot>> GetAsync(string identifier, CancellationToken cancellationToken)
     {
         var mode = _jobExecutionContextAccessor.Current?.ExecutionMode ?? ResearchExecutionMode.Mock;
+        if (mode == ResearchExecutionMode.Recorded)
+        {
+            return RecordedResults.NotRecorded<MarketSnapshot>("Market data", "Twelve Data");
+        }
+
         var fallback = await _mockProvider.GetAsync(identifier, cancellationToken);
         if (mode == ResearchExecutionMode.Mock)
         {
@@ -71,14 +80,14 @@ public sealed class HybridMarketSnapshotProvider : IMarketSnapshotProvider
         {
             return mode == ResearchExecutionMode.LiveRequired
                 ? ProviderResult<MarketSnapshot>.TransientFailure("Twelve Data market snapshot provider is disabled.", false, ProviderOrigin.Live, "Twelve Data")
-                : fallback;
+                : HybridFallback.WhenDisabled(fallback, "Twelve Data market snapshot provider is disabled.", "Twelve Data");
         }
 
         if (string.IsNullOrWhiteSpace(_options.ApiKey))
         {
             return mode == ResearchExecutionMode.LiveRequired
                 ? ProviderResult<MarketSnapshot>.TransientFailure("Twelve Data was enabled but no API key was configured.", false, ProviderOrigin.Live, "Twelve Data")
-                : ToMockFallback(fallback, "Twelve Data was enabled but no API key was configured.");
+                : HybridFallback.FromSample(fallback, "Twelve Data was enabled but no API key was configured.", "Twelve Data");
         }
 
         try
@@ -90,7 +99,7 @@ public sealed class HybridMarketSnapshotProvider : IMarketSnapshotProvider
                 _logger.LogWarning("Twelve Data quote request for {Identifier} returned {StatusCode}.", identifier, response.StatusCode);
                 return mode == ResearchExecutionMode.LiveRequired
                     ? ProviderResult<MarketSnapshot>.TransientFailure("Twelve Data returned a non-success response.", false, ProviderOrigin.Live, "Twelve Data")
-                    : ToMockFallback(fallback, "Twelve Data returned a non-success response, so the seeded mock snapshot was used.");
+                    : HybridFallback.FromSample(fallback, "Twelve Data returned a non-success response, so the seeded mock snapshot was used.", "Twelve Data");
             }
 
             // Since .NET 9, a JSON "null" body deserializes to a JsonDocument whose root is Null instead of to null.
@@ -99,7 +108,7 @@ public sealed class HybridMarketSnapshotProvider : IMarketSnapshotProvider
             {
                 return mode == ResearchExecutionMode.LiveRequired
                     ? ProviderResult<MarketSnapshot>.TransientFailure("Twelve Data returned an empty payload.", false, ProviderOrigin.Live, "Twelve Data")
-                    : ToMockFallback(fallback, "Twelve Data returned an empty payload, so the seeded mock snapshot was used.");
+                    : HybridFallback.FromSample(fallback, "Twelve Data returned an empty payload, so the seeded mock snapshot was used.", "Twelve Data");
             }
 
             var root = payload.RootElement;
@@ -108,7 +117,7 @@ public sealed class HybridMarketSnapshotProvider : IMarketSnapshotProvider
                 _logger.LogWarning("Twelve Data quote request for {Identifier} returned an error payload.", identifier);
                 return mode == ResearchExecutionMode.LiveRequired
                     ? ProviderResult<MarketSnapshot>.TransientFailure("Twelve Data returned an error payload.", false, ProviderOrigin.Live, "Twelve Data")
-                    : ToMockFallback(fallback, "Twelve Data returned an error payload, so the seeded mock snapshot was used.");
+                    : HybridFallback.FromSample(fallback, "Twelve Data returned an error payload, so the seeded mock snapshot was used.", "Twelve Data");
             }
 
             if (!TryGetDecimal(root, "close", out var price) &&
@@ -116,7 +125,7 @@ public sealed class HybridMarketSnapshotProvider : IMarketSnapshotProvider
             {
                 return mode == ResearchExecutionMode.LiveRequired
                     ? ProviderResult<MarketSnapshot>.Empty(errorMessage: "Twelve Data did not return a usable price.", origin: ProviderOrigin.Live, providerName: "Twelve Data")
-                    : ToMockFallback(fallback, "Twelve Data did not return a usable price, so the seeded mock snapshot was used.");
+                    : HybridFallback.FromSample(fallback, "Twelve Data did not return a usable price, so the seeded mock snapshot was used.", "Twelve Data");
             }
 
             TryGetDecimal(root, "percent_change", out var percentChange);
@@ -159,17 +168,9 @@ public sealed class HybridMarketSnapshotProvider : IMarketSnapshotProvider
             _logger.LogWarning(ex, "Falling back to mock market snapshot for {Identifier}.", identifier);
             return mode == ResearchExecutionMode.LiveRequired
                 ? ProviderResult<MarketSnapshot>.TransientFailure("Twelve Data market snapshot retrieval failed.", false, ProviderOrigin.Live, "Twelve Data")
-                : ToMockFallback(fallback, "Twelve Data market snapshot retrieval failed, so the seeded mock snapshot was used.");
+                : HybridFallback.FromSample(fallback, "Twelve Data market snapshot retrieval failed, so the seeded mock snapshot was used.", "Twelve Data");
         }
     }
-
-    private static ProviderResult<MarketSnapshot> ToMockFallback(ProviderResult<MarketSnapshot> fallback, string reason) =>
-        ProviderResult<MarketSnapshot>.Success(
-            fallback.Value!,
-            fallback.Origin,
-            fallback.ProviderName,
-            true,
-            reason);
 
     private static bool IsErrorPayload(JsonElement root) =>
         string.Equals(TryGetString(root, "status"), "error", StringComparison.OrdinalIgnoreCase) ||

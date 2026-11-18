@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 using Proofsheet.Application.Abstractions;
 using Proofsheet.Application.Models;
 using Proofsheet.Domain.Enums;
@@ -26,7 +30,8 @@ public sealed class ConfiguredResearchReasonerSelector : IResearchReasonerSelect
     {
         var configuredModel = ResolveReportModel();
 
-        if (executionMode == ResearchExecutionMode.Mock)
+        // Recorded mode replays data without keys, so the template writes the report there too.
+        if (executionMode is ResearchExecutionMode.Mock or ResearchExecutionMode.Recorded)
         {
             return new ReasonerSelection(_deterministicReasoner, "deterministic", false, null, null);
         }

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Eslam Hamed
+//
+// SPDX-License-Identifier: MIT
+
 using Proofsheet.Application.Abstractions;
 using Proofsheet.Application.Models;
 using Proofsheet.Application.Services;
@@ -46,6 +50,14 @@ public sealed class HybridCompanyProfileProvider : ICompanyProfileProvider
     public async Task<ProviderResult<CompanyProfile>> GetAsync(string identifier, CancellationToken cancellationToken)
     {
         var mode = _jobExecutionContextAccessor.Current?.ExecutionMode ?? ResearchExecutionMode.Mock;
+        // Recorded data takes the live path, with no sample fallback, and is labelled with the recording's date.
+        return mode == ResearchExecutionMode.Recorded
+            ? RecordedResults.AsRecorded(await GetAsync(identifier, ResearchExecutionMode.LiveRequired, cancellationToken), _secEdgarClient.RecordedOn ?? default)
+            : await GetAsync(identifier, mode, cancellationToken);
+    }
+
+    private async Task<ProviderResult<CompanyProfile>> GetAsync(string identifier, ResearchExecutionMode mode, CancellationToken cancellationToken)
+    {
         var fallback = await _mockProvider.GetAsync(identifier, cancellationToken);
         if (mode == ResearchExecutionMode.Mock)
         {
@@ -56,30 +68,30 @@ public sealed class HybridCompanyProfileProvider : ICompanyProfileProvider
         {
             return mode == ResearchExecutionMode.LiveRequired
                 ? ProviderResult<CompanyProfile>.TransientFailure("SEC EDGAR company profile provider is disabled.", false, ProviderOrigin.Live, "SEC EDGAR")
-                : fallback;
+                : HybridFallback.WhenDisabled(fallback, "SEC EDGAR company profile provider is disabled.", "SEC EDGAR");
         }
 
         if (!_secEdgarClient.IsConfigured)
         {
             return mode == ResearchExecutionMode.LiveRequired
                 ? ProviderResult<CompanyProfile>.TransientFailure("SEC EDGAR was enabled but no valid User-Agent was configured.", false, ProviderOrigin.Live, "SEC EDGAR")
-                : ToMockFallback(fallback, "SEC EDGAR was enabled but no valid User-Agent was configured.");
+                : HybridFallback.FromSample(fallback, "SEC EDGAR was enabled but no valid User-Agent was configured.", "SEC EDGAR");
         }
 
         try
         {
             var tickerProfile = await _secEdgarClient.GetTickerProfileAsync(identifier, cancellationToken);
-            var submissions = await _secEdgarClient.GetSubmissionsAsync(identifier, cancellationToken);
+            var submissions = await TryGetSubmissionsAsync(identifier, cancellationToken);
             if (tickerProfile is null && submissions is null)
             {
                 return mode == ResearchExecutionMode.LiveRequired
                     ? ProviderResult<CompanyProfile>.Empty(errorMessage: "SEC EDGAR did not return company profile data.", origin: ProviderOrigin.Live, providerName: "SEC EDGAR")
-                    : ToMockFallback(fallback, "SEC EDGAR did not return company profile data, so the seeded mock profile was used.");
+                    : HybridFallback.FromSample(fallback, "SEC EDGAR did not return company profile data, so the seeded mock profile was used.", "SEC EDGAR");
             }
 
-            var companyName = submissions?.CompanyName ?? tickerProfile?.CompanyName ?? fallback.Value!.CompanyName;
+            var companyName = submissions?.CompanyName ?? tickerProfile?.CompanyName ?? identifier;
             var exchange = submissions?.Exchanges.FirstOrDefault() ?? tickerProfile?.Exchange ?? _jobExecutionContextAccessor.Current?.ResolvedTicker.Exchange;
-            var cikPadded = tickerProfile?.CikPadded ?? _jobExecutionContextAccessor.Current?.ResolvedTicker.CikPadded ?? fallback.Value!.CikPadded;
+            var cikPadded = tickerProfile?.CikPadded ?? submissions?.CikPadded ?? _jobExecutionContextAccessor.Current?.ResolvedTicker.CikPadded ?? string.Empty;
 
             return ProviderResult<CompanyProfile>.Success(
                 new CompanyProfile(
@@ -101,17 +113,24 @@ public sealed class HybridCompanyProfileProvider : ICompanyProfileProvider
             _logger.LogWarning(ex, "Falling back to mock company profile for {Identifier}.", identifier);
             return mode == ResearchExecutionMode.LiveRequired
                 ? ProviderResult<CompanyProfile>.TransientFailure("SEC EDGAR company profile retrieval failed.", false, ProviderOrigin.Live, "SEC EDGAR")
-                : ToMockFallback(fallback, "SEC EDGAR company profile retrieval failed, so the seeded mock profile was used.");
+                : HybridFallback.FromSample(fallback, "SEC EDGAR company profile retrieval failed, so the seeded mock profile was used.", "SEC EDGAR");
         }
     }
 
-    private static ProviderResult<CompanyProfile> ToMockFallback(ProviderResult<CompanyProfile> fallback, string reason) =>
-        ProviderResult<CompanyProfile>.Success(
-            fallback.Value!,
-            fallback.Origin,
-            fallback.ProviderName,
-            true,
-            reason);
+    // The submissions document adds the registered name and exchanges, but the ticker map alone is enough for a
+    // profile, so a missing or failed submissions request no longer fails the company profile.
+    private async Task<SecSubmissionsData?> TryGetSubmissionsAsync(string identifier, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _secEdgarClient.GetSubmissionsAsync(identifier, cancellationToken);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or System.Text.Json.JsonException)
+        {
+            _logger.LogWarning(ex, "SEC submissions for {Identifier} were unavailable; the profile uses the ticker map alone.", identifier);
+            return null;
+        }
+    }
 
     private static IJobExecutionContextAccessor CreateHybridContextAccessor()
     {
