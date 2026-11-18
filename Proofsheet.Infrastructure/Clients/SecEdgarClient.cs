@@ -44,9 +44,12 @@ public sealed class SecEdgarClient
 
     public bool IsConfigured => !string.IsNullOrWhiteSpace(_options.UserAgent);
 
+    // Every request needs both: SEC disabled means no request at all, even for a ticker lookup in mock mode.
+    private bool CanCallSec => Enabled && IsConfigured;
+
     public async Task<SecTickerProfile?> GetTickerProfileAsync(string identifier, CancellationToken cancellationToken)
     {
-        if (!IsConfigured)
+        if (!CanCallSec)
         {
             return null;
         }
@@ -66,7 +69,7 @@ public sealed class SecEdgarClient
 
     public async Task<SecSubmissionsData?> GetSubmissionsAsync(string identifier, CancellationToken cancellationToken)
     {
-        if (!IsConfigured)
+        if (!CanCallSec)
         {
             return null;
         }
@@ -88,7 +91,7 @@ public sealed class SecEdgarClient
 
     public async Task<SecCompanyFactsData?> GetCompanyFactsAsync(string identifier, CancellationToken cancellationToken)
     {
-        if (!IsConfigured)
+        if (!CanCallSec)
         {
             return null;
         }
@@ -110,7 +113,7 @@ public sealed class SecEdgarClient
 
     public async Task<IReadOnlyList<SecTickerProfile>> SearchTickerProfilesAsync(string query, int limit, CancellationToken cancellationToken)
     {
-        if (!IsConfigured || string.IsNullOrWhiteSpace(query))
+        if (!CanCallSec || string.IsNullOrWhiteSpace(query))
         {
             return Array.Empty<SecTickerProfile>();
         }

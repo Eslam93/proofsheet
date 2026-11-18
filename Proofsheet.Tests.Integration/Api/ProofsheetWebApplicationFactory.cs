@@ -25,6 +25,12 @@ internal sealed class ProofsheetWebApplicationFactory : WebApplicationFactory<Pr
         _configurationOverrides["SecEdgar:Enabled"] = "false";
         _configurationOverrides["TwelveData:Enabled"] = "false";
         _configurationOverrides["AlphaVantage:Enabled"] = "false";
+        // Blank every key and contact, so a developer's user secrets (loaded because the host runs as Development)
+        // can never reach a live service from a test. A test that needs a key sets a fake one.
+        _configurationOverrides["OpenAiResponses:ApiKey"] = "";
+        _configurationOverrides["SecEdgar:UserAgent"] = "";
+        _configurationOverrides["TwelveData:ApiKey"] = "";
+        _configurationOverrides["AlphaVantage:ApiKey"] = "";
 
         if (configurationOverrides is not null)
         {
