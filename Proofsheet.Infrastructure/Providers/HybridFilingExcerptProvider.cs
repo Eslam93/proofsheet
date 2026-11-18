@@ -52,6 +52,11 @@ public sealed class HybridFilingExcerptProvider : IFilingExcerptProvider
     public async Task<ProviderResult<FilingCoverage>> GetAsync(string identifier, CancellationToken cancellationToken)
     {
         var mode = _jobExecutionContextAccessor.Current?.ExecutionMode ?? ResearchExecutionMode.Mock;
+        if (mode == ResearchExecutionMode.Recorded)
+        {
+            return RecordedResults.NotRecorded<FilingCoverage>("The list of recent filings", "SEC EDGAR");
+        }
+
         var fallback = await _mockProvider.GetAsync(identifier, cancellationToken);
         if (mode == ResearchExecutionMode.Mock)
         {

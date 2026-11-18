@@ -21,7 +21,7 @@ SPDX-License-Identifier = "MIT"
 # Company facts from SEC EDGAR, trimmed to the concepts the provider reads. The figures are what each company filed
 # with the SEC; none of it is the project's own work.
 [[annotations]]
-path = "Proofsheet.Tests.Unit/Fixtures/Sec/companyfacts-*.json"
+path = "data/sec/*/companyfacts-*.json"
 precedence = "override"
 SPDX-FileCopyrightText = "NONE"
 SPDX-License-Identifier = "LicenseRef-SEC-EDGAR-Data"

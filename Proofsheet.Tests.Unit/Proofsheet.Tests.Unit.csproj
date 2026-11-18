@@ -28,7 +28,8 @@ SPDX-License-Identifier: MIT
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="Fixtures\**\*.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Recorded SEC company facts, shared with the API's recorded demo (see data/sec/README.md). -->
+    <None Include="..\data\sec\2026-11-06\*.json" LinkBase="Fixtures\Sec" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

@@ -30,4 +30,9 @@ SPDX-License-Identifier: MIT
     </Content>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The recorded SEC data the Recorded mode replays (see data/sec/README.md). Outside wwwroot, so never served as a file. -->
+    <Content Include="..\data\sec\2026-11-06\*.json" LinkBase="RecordedData\Sec" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

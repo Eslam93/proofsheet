@@ -66,6 +66,11 @@ public sealed class HybridNewsProvider : INewsProvider
     public async Task<ProviderResult<NewsCoverage>> GetAsync(string identifier, CancellationToken cancellationToken)
     {
         var mode = _jobExecutionContextAccessor.Current?.ExecutionMode ?? ResearchExecutionMode.Mock;
+        if (mode == ResearchExecutionMode.Recorded)
+        {
+            return RecordedResults.NotRecorded<NewsCoverage>("News coverage", "Alpha Vantage");
+        }
+
         var fallback = await _mockProvider.GetAsync(identifier, cancellationToken);
         if (mode == ResearchExecutionMode.Mock)
         {

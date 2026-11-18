@@ -37,4 +37,13 @@ public sealed class ResearchExecutionOptions
 
     /// <summary>The most jobs kept at once. When the store is full, the oldest finished jobs are dropped first.</summary>
     public int MaxStoredJobs { get; init; } = 500;
+
+    /// <summary>In Recorded mode, the folder of recorded SEC company facts, relative to the app's directory.</summary>
+    public string RecordedSecDataPath { get; init; } = "RecordedData/Sec";
+
+    /// <summary>
+    /// The day the recorded SEC data was captured. Recorded reports are built as of this date by default, and a later
+    /// date is refused because the recording holds nothing filed after it.
+    /// </summary>
+    public DateOnly RecordedOn { get; init; } = new(2026, 11, 6);
 }

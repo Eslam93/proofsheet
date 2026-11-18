@@ -1,4 +1,4 @@
-The files Proofsheet.Tests.Unit/Fixtures/Sec/companyfacts-*.json hold data from the U.S. Securities and Exchange
+The files data/sec/*/companyfacts-*.json hold data from the U.S. Securities and Exchange
 Commission's EDGAR system: the XBRL company facts API at https://data.sec.gov/api/xbrl/companyfacts/, retrieved on
 2026-11-06 and trimmed to the concepts Proofsheet reads. Every fact inside a kept concept is unchanged.
 

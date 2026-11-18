@@ -115,6 +115,14 @@ public sealed class HybridFinancialStatementProvider : IFinancialStatementProvid
     public async Task<ProviderResult<FinancialStatement>> GetAsync(string identifier, CancellationToken cancellationToken)
     {
         var mode = _jobExecutionContextAccessor.Current?.ExecutionMode ?? ResearchExecutionMode.Mock;
+        // Recorded data takes the live path, with no sample fallback, and is labelled with the recording's date.
+        return mode == ResearchExecutionMode.Recorded
+            ? RecordedResults.AsRecorded(await GetAsync(identifier, ResearchExecutionMode.LiveRequired, cancellationToken), _secEdgarClient.RecordedOn ?? default)
+            : await GetAsync(identifier, mode, cancellationToken);
+    }
+
+    private async Task<ProviderResult<FinancialStatement>> GetAsync(string identifier, ResearchExecutionMode mode, CancellationToken cancellationToken)
+    {
         var fallback = await _mockProvider.GetAsync(identifier, cancellationToken);
         if (mode == ResearchExecutionMode.Mock)
         {

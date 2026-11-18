@@ -18,17 +18,24 @@ dotnet run --project Proofsheet.Api --launch-profile http
 
 Open <http://localhost:5214>, pick a sample company, and generate a report. The API's Swagger UI is at <http://localhost:5214/swagger>. For more detail, see the [no-keys quickstart](docs/quickstart-no-keys.md).
 
+To see real companies instead, still without keys, replay the SEC data recorded on 2026-11-06 for 14 companies. Every figure in those reports links to the 10-K it came from:
+
+```bash
+ResearchJobs__Mode=Recorded dotnet run --project Proofsheet.Api --launch-profile http
+```
+
 ## What it does
 
 - **Research jobs.** Submitting a ticker queues a job on a bounded in-process queue, and a hosted worker runs it. While it runs, the status endpoint reports each step, warning and source.
 - **Data.** SEC EDGAR supplies company identity, the list of recent filings (form, date and link, not their text) and XBRL financial statements. Twelve Data (a market quote) and Alpha Vantage (news) are optional.
 - **Reports.** Each report has a company, thesis, signal (Bullish, Neutral or Bearish), confidence, two to five insights and the source ids each one cites, plus which provider supplied each part of the data and whether it was live or sample data. Every financial figure taken from SEC data is listed with its XBRL concept, the period it covers and a link to the EDGAR filing it came from. With a model configured, the model writes the report through the OpenAI Responses API, and deterministic checks then bound its confidence and can overrule its signal. Without one, a deterministic template writes it.
-- **Two ways to research.** *Standard* runs a fixed multi-step pipeline. *Autonomous* has a model coordinator call research tools and hand an evidence package to a specialist, which drafts, critiques and repairs the report.
+- **A fixed research pipeline.** Resolve the company, collect five kinds of data in parallel, assess their quality, branch on gaps and contradictions, write the report, then check it.
 - **Report chat.** A SignalR chat answers questions about the completed report. The model gets only the report and tools to look up its sources and trace steps; nothing checks its answers. Streaming resumes after a reconnect.
 - **Run modes.**
   - `Mock`: the fictional sample companies, no keys.
   - `Hybrid`: live data. Where a provider fails, a real company's report leaves that part out; only the sample companies fall back to sample data.
   - `LiveRequired`: live data only.
+  - `Recorded`: SEC data recorded on 2026-11-06 for 14 companies, replayed through the real SEC client and selection rule with no network calls, no keys and no model. Market data, news and chat are off. This is the mode for a public demo.
   - `Auto` (the default): picks Mock or LiveRequired depending on what is configured.
 
 ## How it works
@@ -68,7 +75,7 @@ The fix is [`SecFactSelector`](Proofsheet.Infrastructure/Clients/SecFactSelector
 - Revenue comes from the concept the company still reports.
 - Every other figure is pinned to that same fiscal year.
 
-It is tested against trimmed real SEC data for 14 companies. The expected values come from a [separate JavaScript implementation](Proofsheet.Tests.Unit/Fixtures/Sec/reference.js) of the same rules, so the tests show that two implementations agree, not that the rules pick the right figures.
+It is tested against trimmed real SEC data for 14 companies. The expected values come from a [separate JavaScript implementation](data/sec/reference.js) of the same rules, so the tests show that two implementations agree, not that the rules pick the right figures.
 
 **Models inside guardrails.** The model writes the report, but the backend has the final say:
 - Cited source IDs must exist.
@@ -130,7 +137,7 @@ The image runs as a non-root user and listens on port 8080.
 - Jobs, reports and chat threads are kept in memory and are lost on restart. A finished job is kept for 24 hours, and at most 500 jobs are kept at once. There is no authentication; each client address is rate limited instead.
 - Live statements need the standard US GAAP concepts. Banks, oil majors and many pharmaceutical companies don't report operating income that way, so their statement is refused with a reason, and the job fails rather than show figures from anywhere else.
 - The signal and confidence come from heuristics and a language model. Treat them as a demonstration, not a recommendation.
-- Autonomous mode is an early version: its coordinator chooses the order and repetition of a fixed set of research tools.
+- An experimental *Autonomous* mode has a model coordinator call the same research tools and hand an evidence package to a specialist, which drafts, critiques and repairs the report. It has the thinnest tests and the most model calls, so it is offered only where a model is configured for live data, and it is not part of the demo.
 
 ## Roadmap
 
@@ -148,4 +155,4 @@ The [reference](docs/reference.md) keeps the full original documentation: archit
 
 ## License
 
-[MIT](LICENSE), by the [REUSE](https://reuse.software) convention: every file states its copyright and license, and CI checks it. The SEC company-facts fixtures in `Proofsheet.Tests.Unit/Fixtures/Sec` are data the companies filed with the SEC, not the author's work, so they keep their own origin in [REUSE.toml](REUSE.toml).
+[MIT](LICENSE), by the [REUSE](https://reuse.software) convention: every file states its copyright and license, and CI checks it. The recorded SEC company facts in [`data/sec`](data/sec) are data the companies filed with the SEC, not the author's work, so they keep their own origin in [REUSE.toml](REUSE.toml).

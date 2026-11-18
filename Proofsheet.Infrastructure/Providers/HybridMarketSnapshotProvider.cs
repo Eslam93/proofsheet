@@ -65,6 +65,11 @@ public sealed class HybridMarketSnapshotProvider : IMarketSnapshotProvider
     public async Task<ProviderResult<MarketSnapshot>> GetAsync(string identifier, CancellationToken cancellationToken)
     {
         var mode = _jobExecutionContextAccessor.Current?.ExecutionMode ?? ResearchExecutionMode.Mock;
+        if (mode == ResearchExecutionMode.Recorded)
+        {
+            return RecordedResults.NotRecorded<MarketSnapshot>("Market data", "Twelve Data");
+        }
+
         var fallback = await _mockProvider.GetAsync(identifier, cancellationToken);
         if (mode == ResearchExecutionMode.Mock)
         {

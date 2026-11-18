@@ -1,6 +1,14 @@
-# SEC company facts fixtures
+# Recorded SEC data
 
-Real XBRL company facts from SEC EDGAR (`https://data.sec.gov/api/xbrl/companyfacts/CIK##########.json`), captured on 2026-11-06. SEC EDGAR data is public domain.
+Real XBRL company facts from SEC EDGAR (`https://data.sec.gov/api/xbrl/companyfacts/CIK##########.json`), one folder per capture date. They are what each company filed with the SEC, not this project's work: see `REUSE.toml` and `LICENSES/LicenseRef-SEC-EDGAR-Data.txt`.
+
+The `2026-11-06` folder is used two ways:
+- the unit tests read it (the test project links it in as `Fixtures/Sec`);
+- the API's `Recorded` mode replays it through the real SEC client and selection rule, so a demo needs no keys and makes no network calls. Its reports are built as of 2026-11-06.
+
+## 2026-11-06
+
+Captured on 2026-11-06.
 
 Each file is trimmed to the US GAAP concepts the financial statement provider reads, plus two capital-expenditure concepts the provider deliberately ignores. Every fact inside a kept concept is unchanged. The TSM file keeps two IFRS concepts instead, because that company reports no US GAAP facts.
 
@@ -19,4 +27,4 @@ Each file is trimmed to the US GAAP concepts the financial statement provider re
 | JPM, XOM | No `OperatingIncomeLoss` (a bank and an oil major), so no statement can be built. |
 | TSM | Foreign filer reporting under IFRS, which is unsupported. |
 
-The expected values in `SecFinancialStatementFixtureTests` were computed from these files by `reference.js`, a separate implementation of the same rules, not by the provider. Two implementations of the same rules agreeing shows the C# does what the rules say, not that the rules pick the right figures. See the top of `reference.js` to refresh a fixture or add one.
+The expected values in `SecFinancialStatementFixtureTests` were computed from these files by [`reference.js`](reference.js), a separate implementation of the same rules, not by the provider. Two implementations of the same rules agreeing shows the C# does what the rules say, not that the rules pick the right figures. See the top of `reference.js` to refresh a fixture or add one.

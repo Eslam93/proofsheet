@@ -78,12 +78,20 @@ public sealed class ResearchJobSubmissionService : IResearchJobSubmissionService
             return ResearchJobSubmissionResult.Rejected(validation.Problem!);
         }
 
-        // The date is fixed at submission, so the job reads the same filings however long it waits in the queue.
+        // The date is fixed at submission, so the job reads the same filings however long it waits in the queue. A
+        // recording holds nothing filed after the day it was made, so recorded reports default to that day.
+        var executionMode = _executionModeResolver.Resolve();
         var today = DateOnly.FromDateTime(_timeProvider.GetUtcNow().UtcDateTime);
-        var effectiveAsOf = asOf ?? today;
+        var latestAsOf = executionMode == ResearchExecutionMode.Recorded ? _options.RecordedOn : today;
+        var effectiveAsOf = asOf ?? latestAsOf;
         if (effectiveAsOf > today)
         {
             return ResearchJobSubmissionResult.Rejected(InvalidAsOf("The as-of date cannot be in the future."));
+        }
+
+        if (effectiveAsOf > latestAsOf)
+        {
+            return ResearchJobSubmissionResult.Rejected(InvalidAsOf($"This server replays SEC data recorded on {latestAsOf:yyyy-MM-dd}, so it has nothing filed after that date."));
         }
 
         if (effectiveAsOf < EarliestAsOf)
@@ -105,7 +113,6 @@ public sealed class ResearchJobSubmissionService : IResearchJobSubmissionService
                     Identifier: normalizedIdentifier));
         }
 
-        var executionMode = _executionModeResolver.Resolve();
         var effectiveResearchMode = researchMode ?? ResearchMode.Standard;
         ResearchJobRecord record;
         do

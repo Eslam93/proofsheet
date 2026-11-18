@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 using Proofsheet.Application.Abstractions;
+using Proofsheet.Domain.Enums;
 using Proofsheet.Application.Models;
 using Proofsheet.Application.Services;
 using Proofsheet.Domain.Contracts;
@@ -18,6 +19,7 @@ using Proofsheet.Infrastructure.Reasoning;
 using Proofsheet.Infrastructure.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using System.Net.Http.Headers;
 using System.Net;
 
@@ -32,6 +34,29 @@ public static class ServiceCollectionExtensions
         services.Configure<SecEdgarOptions>(configuration.GetSection(SecEdgarOptions.SectionName));
         services.Configure<TwelveDataOptions>(configuration.GetSection(TwelveDataOptions.SectionName));
         services.Configure<AlphaVantageOptions>(configuration.GetSection(AlphaVantageOptions.SectionName));
+
+        // In Recorded mode the SEC client answers from a recording on disk instead of the network: SEC counts as
+        // enabled, the User-Agent is never sent anywhere, and reports are labelled with the recording's date. All of it
+        // is decided when the services are first resolved, after every configuration source has been added.
+        services.AddSingleton(serviceProvider =>
+        {
+            var executionOptions = serviceProvider.GetRequiredService<IOptions<ResearchExecutionOptions>>().Value;
+            return new RecordedSecData(
+                Path.Combine(AppContext.BaseDirectory, executionOptions.RecordedSecDataPath),
+                executionOptions.RecordedOn);
+        });
+        services.AddOptions<SecEdgarOptions>()
+            .PostConfigure<IOptions<ResearchExecutionOptions>>((options, executionOptions) =>
+            {
+                if (executionOptions.Value.Mode != ResearchExecutionMode.Recorded)
+                {
+                    return;
+                }
+
+                options.Enabled = true;
+                options.UserAgent = "Proofsheet recorded data (no network)";
+                options.RecordedOn = executionOptions.Value.RecordedOn;
+            });
 
         services.AddSingleton(TimeProvider.System);
         services.AddMemoryCache();
@@ -75,10 +100,13 @@ public static class ServiceCollectionExtensions
                     client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", options.UserAgent);
                 }
             })
-            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
-            {
-                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
-            });
+            .ConfigurePrimaryHttpMessageHandler(serviceProvider =>
+                serviceProvider.GetRequiredService<IOptions<ResearchExecutionOptions>>().Value.Mode == ResearchExecutionMode.Recorded
+                ? new RecordedSecHandler(serviceProvider.GetRequiredService<RecordedSecData>())
+                : new HttpClientHandler
+                {
+                    AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+                });
         services.AddHttpClient<HybridMarketSnapshotProvider>((serviceProvider, client) =>
         {
             var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<TwelveDataOptions>>().Value;

@@ -50,6 +50,14 @@ public sealed class HybridCompanyProfileProvider : ICompanyProfileProvider
     public async Task<ProviderResult<CompanyProfile>> GetAsync(string identifier, CancellationToken cancellationToken)
     {
         var mode = _jobExecutionContextAccessor.Current?.ExecutionMode ?? ResearchExecutionMode.Mock;
+        // Recorded data takes the live path, with no sample fallback, and is labelled with the recording's date.
+        return mode == ResearchExecutionMode.Recorded
+            ? RecordedResults.AsRecorded(await GetAsync(identifier, ResearchExecutionMode.LiveRequired, cancellationToken), _secEdgarClient.RecordedOn ?? default)
+            : await GetAsync(identifier, mode, cancellationToken);
+    }
+
+    private async Task<ProviderResult<CompanyProfile>> GetAsync(string identifier, ResearchExecutionMode mode, CancellationToken cancellationToken)
+    {
         var fallback = await _mockProvider.GetAsync(identifier, cancellationToken);
         if (mode == ResearchExecutionMode.Mock)
         {
@@ -73,7 +81,7 @@ public sealed class HybridCompanyProfileProvider : ICompanyProfileProvider
         try
         {
             var tickerProfile = await _secEdgarClient.GetTickerProfileAsync(identifier, cancellationToken);
-            var submissions = await _secEdgarClient.GetSubmissionsAsync(identifier, cancellationToken);
+            var submissions = await TryGetSubmissionsAsync(identifier, cancellationToken);
             if (tickerProfile is null && submissions is null)
             {
                 return mode == ResearchExecutionMode.LiveRequired
@@ -106,6 +114,21 @@ public sealed class HybridCompanyProfileProvider : ICompanyProfileProvider
             return mode == ResearchExecutionMode.LiveRequired
                 ? ProviderResult<CompanyProfile>.TransientFailure("SEC EDGAR company profile retrieval failed.", false, ProviderOrigin.Live, "SEC EDGAR")
                 : HybridFallback.FromSample(fallback, "SEC EDGAR company profile retrieval failed, so the seeded mock profile was used.", "SEC EDGAR");
+        }
+    }
+
+    // The submissions document adds the registered name and exchanges, but the ticker map alone is enough for a
+    // profile, so a missing or failed submissions request no longer fails the company profile.
+    private async Task<SecSubmissionsData?> TryGetSubmissionsAsync(string identifier, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _secEdgarClient.GetSubmissionsAsync(identifier, cancellationToken);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or System.Text.Json.JsonException)
+        {
+            _logger.LogWarning(ex, "SEC submissions for {Identifier} were unavailable; the profile uses the ticker map alone.", identifier);
+            return null;
         }
     }
 

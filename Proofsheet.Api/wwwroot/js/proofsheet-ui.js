@@ -358,13 +358,19 @@
         elements.providerUsage.innerHTML = "";
         (result.providerUsage || []).forEach((usage) => {
             const item = document.createElement("li");
-            const fallbackNote = usage.fallbackOccurred && usage.fallbackReason
-                ? `Fallback: ${usage.fallbackReason}`
-                : usage.fallbackOccurred ? "Fallback occurred." : "Primary path succeeded.";
+            const available = usage.status === "Success";
+            const fallbackNote = !available
+                ? "Not available for this report."
+                : usage.fallbackOccurred && usage.fallbackReason
+                    ? `Fallback: ${usage.fallbackReason}`
+                    : usage.fallbackOccurred ? "Fallback occurred." : "Primary path succeeded.";
+            const source = available
+                ? `${humanizeToken(usage.origin)} via ${sourceProviderLabel(usage.providerName || "Unknown provider")}`
+                : `Not available from ${sourceProviderLabel(usage.providerName || "Unknown provider")}`;
 
             item.innerHTML = [
                 `<strong>${escapeHtml(humanizeToken(usage.domain))}</strong>`,
-                `<span>${escapeHtml(humanizeToken(usage.origin))} via ${escapeHtml(sourceProviderLabel(usage.providerName || "Unknown provider"))}</span>`,
+                `<span>${escapeHtml(source)}</span>`,
                 `<small>${escapeHtml(fallbackNote)}</small>`
             ].join("");
             elements.providerUsage.appendChild(item);
@@ -376,9 +382,14 @@
     function renderDataLabel(result, label) {
         const usages = (result.providerUsage || []).filter((usage) => usage.status === "Success");
         const sample = usages.filter((usage) => usage.origin === "Mock");
+        const recorded = usages.filter((usage) => usage.origin === "Recorded");
+        const recordedOn = document.getElementById("report-page")?.dataset.recordedOn;
         let text;
         let kind;
-        if (usages.length > 0 && sample.length === usages.length) {
+        if (usages.length > 0 && recorded.length === usages.length) {
+            kind = "recorded";
+            text = `Recorded SEC data: every figure is what the company had filed with the SEC by ${result.asOf || recordedOn || "the recording date"}, replayed from a recording${recordedOn ? ` made on ${recordedOn}` : ""}, and a template wrote the text. Market data, news and chat are off in this demo.`;
+        } else if (usages.length > 0 && sample.length === usages.length) {
             kind = "sample";
             text = "Fictional sample data. This company and every figure, headline and filing excerpt in this report are invented to show how Proofsheet works.";
         } else if (sample.length > 0) {

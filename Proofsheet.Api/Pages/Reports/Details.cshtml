@@ -4,7 +4,7 @@
     ViewData["Title"] = "Report";
 }
 
-<section id="report-page" class="report-page" data-job-id="@Model.JobId" data-chat-enabled="@Model.IsReportChatConfigured.ToString().ToLowerInvariant()" data-chat-unavailable-reason="@Model.ReportChatUnavailableReason">
+<section id="report-page" class="report-page" data-job-id="@Model.JobId" data-chat-enabled="@Model.IsReportChatConfigured.ToString().ToLowerInvariant()" data-chat-unavailable-reason="@Model.ReportChatUnavailableReason" data-recorded-on="@Model.RecordedOn">
     <div class="report-page__header">
         <div class="report-page__identity">
             <h1 id="report-company">Preparing report</h1>
@@ -113,7 +113,7 @@
 
             @if (!Model.IsReportChatConfigured)
             {
-                <p class="form-message">Report chat is unavailable until <code>OpenAiResponses</code> is configured.</p>
+                <p class="form-message">@Model.ReportChatUnavailableReason</p>
             }
 
             <div id="chat-panel" class="chat-panel">

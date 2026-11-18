@@ -18,7 +18,7 @@ using Microsoft.Extensions.Options;
 
 namespace Proofsheet.Tests.Unit.Providers;
 
-// Real SEC EDGAR company facts captured on 2026-11-06 (see Fixtures/Sec/README.md).
+// Real SEC EDGAR company facts captured on 2026-11-06 (see data/sec/README.md).
 public sealed class SecFinancialStatementFixtureTests
 {
     private static readonly DateTimeOffset CapturedOn = new(2026, 11, 6, 0, 0, 0, TimeSpan.Zero);

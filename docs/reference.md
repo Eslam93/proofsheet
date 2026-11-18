@@ -434,9 +434,9 @@ Use `Standard` when:
 - demonstrating the simplest path
 - you want predictable orchestration
 
-### `Autonomous`
+### `Autonomous` (experimental)
 
-This is the advanced multi-agent path.
+This is the experimental multi-agent path. It has the thinnest tests and the most model calls, so the UI offers it only where a model is configured for live data, and it is not part of the demo.
 
 It uses:
 
@@ -473,6 +473,15 @@ Execution mode controls the provider and fallback strategy.
 - seeded fallback is disabled for main report generation
 - critical live-source failure fails the job
 - non-critical live-source failure degrades the report
+
+### `Recorded`
+
+- replays the SEC company facts in `data/sec/2026-11-06` through the real SEC client and selection rule; the recording is copied next to the app as `RecordedData/Sec`
+- makes no network call and needs no key: the SEC client's HTTP handler answers from the recording, and Twelve Data, Alpha Vantage and OpenAI are never called
+- only the recorded companies resolve; reports are built as of the recording date (`ResearchJobs__RecordedOn`, default `2026-11-06`), and a later as-of date is refused
+- market data, news and the list of recent filings were not recorded, so each report says they are missing; with that much missing, the backend forces a `Neutral` signal
+- a template writes the report and chat is off, even if a model key is configured
+- provenance shows the origin `Recorded` and the provider `SEC EDGAR, recorded 2026-11-06`
 
 ### `Auto`
 
@@ -1067,7 +1076,7 @@ The test suite covers:
 - state transitions
 - deterministic scoring rules
 - live-provider hybrid behavior
-- SEC XBRL fact selection, against real company facts for 14 companies (see `Proofsheet.Tests.Unit/Fixtures/Sec`)
+- SEC XBRL fact selection, against real company facts for 14 companies (see `data/sec`)
 - JSON `null` provider payloads
 - Responses API stream parsing
 - report synthesis validation and repair mapping

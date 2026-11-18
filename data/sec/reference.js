@@ -2,15 +2,15 @@
 //
 // SPDX-License-Identifier: MIT
 
-// Independent reference for the SEC fixtures in this folder, written separately from the C# provider so the two can
+// Independent reference for the recorded SEC data in this folder, written separately from the C# provider so the two can
 // check each other. It implements the same rules as Proofsheet.Infrastructure/Clients/SecFactSelector.cs and
 // Proofsheet.Infrastructure/Providers/HybridFinancialStatementProvider.cs.
 //
-// Refresh or add a fixture:
+// Refresh or add a recording (run from data/sec):
 //   1. Download https://data.sec.gov/api/xbrl/companyfacts/CIK##########.json for each company into a folder, as
 //      companyfacts-<TICKER>.json. SEC requires a User-Agent with contact details.
-//   2. node reference.js trim <download-folder> . <TICKER> [<TICKER> ...]
-//   3. node reference.js compute . <capture date, yyyy-MM-dd>
+//   2. node reference.js trim <download-folder> <capture date, yyyy-MM-dd> <TICKER> [<TICKER> ...]
+//   3. node reference.js compute <capture date folder> <capture date, yyyy-MM-dd>
 //      and copy the printed values into SecFinancialStatementFixtureTests.
 const fs = require("fs");
 const path = require("path");

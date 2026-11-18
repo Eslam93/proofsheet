@@ -48,6 +48,9 @@ public sealed class SecEdgarClient
 
     public bool IsConfigured => !string.IsNullOrWhiteSpace(_options.UserAgent);
 
+    /// <summary>Set in Recorded mode: the day the replayed data was captured.</summary>
+    public DateOnly? RecordedOn => _options.RecordedOn;
+
     // Every request needs both: SEC disabled means no request at all, even for a ticker lookup in mock mode.
     private bool CanCallSec => Enabled && IsConfigured;
 
